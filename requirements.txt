@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+openai>=1.0.0
+sqlalchemy
+python-dotenv
+httpx
+psycopg2-binary
+python-multipart

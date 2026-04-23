@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>DhifafBot | ضفاف بوت</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <!-- External Libraries -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+  <div class="app">
+    <!-- Mobile Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-top">
+          <i data-lucide="message-square" class="logo-icon" style="color: var(--color-primary);"></i>
+          <h2 class="sidebar-title">المحادثات</h2>
+        </div>
+        <button class="new-chat-btn" id="newChatBtn">
+          <i data-lucide="plus-circle"></i>
+          <span>محادثة جديدة</span>
+        </button>
+      </div>
+      <div class="conversations-list" id="conversationsList"></div>
+    </div>
+
+    <!-- MAIN CHAT AREA -->
+    <div class="main">
+      <!-- HEADER -->
+      <div class="chat-header">
+        <button class="menu-toggle" id="menuToggle"><i data-lucide="menu"></i></button>
+        <div class="logo-area">
+          <div class="title">
+            <h1>DhifafBot <span class="arabic">ضفاف بوت</span></h1>
+            <p>مساعدك الذكي للتسوق</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="infoBtn" class="icon-btn" title="Info"><i data-lucide="info"></i></button>
+          <button id="clearCurrentChatBtn" class="icon-btn" title="Clear chat"><i data-lucide="trash-2"></i></button>
+          <button id="themeToggleBtn" class="icon-btn" title="Toggle theme"><i data-lucide="moon"
+              id="themeIcon"></i></button>
+        </div>
+      </div>
+
+      <!-- MESSAGES -->
+      <div class="messages" id="messages"></div>
+
+      <!-- EMPTY STATE -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon"><i data-lucide="message-square" style="width: 40px; height: 40px;"></i></div>
+        <h2>أهلاً بك في ضفاف بوت</h2>
+        <p>مساعدك الذكي للتسوق متواجد دائماً لخدمتك. ابدأ محادثة جديدة لاستكشاف أفضل المنتجات والعروض.</p>
+      </div>
+
+      <!-- INPUT AREA -->
+      <div class="input-area">
+        <div id="imagePreviewContainer" class="image-preview-container hidden">
+          <img id="imagePreview" src="" alt="Preview">
+          <button id="removeImageBtn" class="remove-image-btn"><i data-lucide="x"></i></button>
+        </div>
+        <div class="input-container">
+          <div class="input-wrapper">
+            <input type="text" id="userInput" placeholder="Type your message... | اكتب رسالتك..." autofocus />
+            <input type="file" id="fileInput" accept="image/*" class="hidden" style="display: none;">
+            <button class="input-btn" id="attachBtn" title="Attach"><i data-lucide="paperclip"></i></button>
+          </div>
+          <button class="send-btn" onclick="sendMessage()" title="Send">
+            <svg viewBox="0 0 24 24">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Scripts -->
+  <script src="/static/script.js" defer></script>
+</body>
+
+</html>
