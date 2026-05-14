@@ -30,7 +30,7 @@ function updateThemeButton() {
 
 function toggleTheme() {
   const isDark = document.body.classList.contains('dark');
-  
+
   if (isDark) {
     document.body.classList.remove('dark');
     localStorage.setItem('theme', 'light');
@@ -38,7 +38,7 @@ function toggleTheme() {
     document.body.classList.add('dark');
     localStorage.setItem('theme', 'dark');
   }
-  
+
   updateThemeButton();
 }
 
@@ -85,8 +85,8 @@ function buildProductCard(p) {
   const name = p.name || 'Product';
   const firstLetter = name.trim().charAt(0).toUpperCase() || 'P';
   const imgUrl = p.image_url;
-  
-  const visualContent = imgUrl 
+
+  const visualContent = imgUrl
     ? `<img src="${esc(imgUrl)}" class="product-card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
        <div class="product-avatar" style="display:none;">${esc(firstLetter)}</div>`
     : `<div class="product-avatar">${esc(firstLetter)}</div>`;
@@ -106,6 +106,29 @@ function buildProductCard(p) {
     </div>`;
 }
 
+function renderBotMarkdown(text) {
+  let safe = esc(text);
+
+  // Bold: **text**
+  safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Images: ![name](url)
+  safe = safe.replace(
+    /!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<div class="chat-img-wrap"><img src="$2" alt="$1" class="chat-product-img"></div>'
+  );
+
+  // Links: [Explore More](url)
+  safe = safe.replace(
+    /\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" class="chat-product-link">$1</a>'
+  );
+
+  safe = safe.replace(/\n/g, '<br>');
+
+  return safe;
+}
+
 function addMessage(role, content, products, messageId, imageUrl) {
   products = Array.isArray(products) ? products : [];
 
@@ -116,7 +139,7 @@ function addMessage(role, content, products, messageId, imageUrl) {
   if (role === 'user') {
     const group = document.createElement('div');
     group.className = 'msg-group';
-    
+
     const bubble = document.createElement('div');
     bubble.className = 'user-bubble';
 
@@ -127,13 +150,13 @@ function addMessage(role, content, products, messageId, imageUrl) {
       img.className = 'msg-image-preview';
       bubble.appendChild(img);
     }
-    
+
     if (content && content.trim()) {
       const textSpan = document.createElement('div');
       textSpan.innerHTML = esc(content).replace(/\n/g, '<br>');
       bubble.appendChild(textSpan);
     }
-    
+
     group.appendChild(bubble);
     row.appendChild(group);
     messagesDiv.appendChild(row);
@@ -142,13 +165,13 @@ function addMessage(role, content, products, messageId, imageUrl) {
     if (content && content.trim()) {
       const textRow = document.createElement('div');
       textRow.className = 'msg-row bot';
-      
+
       const group = document.createElement('div');
       group.className = 'msg-group';
-      
+
       const bubble = document.createElement('div');
       bubble.className = 'bot-bubble';
-      bubble.innerHTML = esc(content).replace(/\n/g, '<br>');
+      bubble.innerHTML = renderBotMarkdown(content);
 
       if (isArabic(content)) {
         bubble.style.direction = 'rtl';
@@ -157,28 +180,28 @@ function addMessage(role, content, products, messageId, imageUrl) {
         bubble.style.direction = 'ltr';
         bubble.style.textAlign = 'left';
       }
-      
+
       group.appendChild(bubble);
       textRow.appendChild(group);
       messagesDiv.appendChild(textRow);
     }
-    
+
     for (let p of products) {
       const productRow = document.createElement('div');
       productRow.className = 'msg-row bot';
       if (isArabic(p.name)) {
-         productRow.style.direction = 'rtl';
+        productRow.style.direction = 'rtl';
       }
-      
+
       const group = document.createElement('div');
       group.className = 'msg-group';
       group.innerHTML = buildProductCard(p);
-      
+
       productRow.appendChild(group);
       messagesDiv.appendChild(productRow);
     }
   }
-  
+
   updateEmptyState();
   scrollToBottom();
 }
@@ -187,11 +210,11 @@ function showTyping() {
   const row = document.createElement('div');
   row.className = 'msg-row bot';
   row.id = 'typing-row';
-  
+
   const group = document.createElement('div');
   group.className = 'msg-group';
   group.innerHTML = '<div class="typing-bubble"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
-  
+
   row.appendChild(group);
   messagesDiv.appendChild(row);
   scrollToBottom();
@@ -207,7 +230,7 @@ async function loadHistory(userId) {
   currentUserId = userId;
   messagesDiv.innerHTML = '';
   showTyping();
-  
+
   try {
     const res = await fetch(`/history/${userId}`);
     if (!res.ok) throw new Error('History fetch failed');
@@ -216,9 +239,9 @@ async function loadHistory(userId) {
     history.forEach(msg => {
       addMessage(msg.role, msg.content, msg.products, msg.id, msg.image_url);
     });
-    
+
     updateEmptyState();
-    
+
     document.querySelectorAll('.conversation-item').forEach(item => {
       if (item.dataset.userId === userId) {
         item.classList.add('active');
@@ -235,7 +258,7 @@ async function loadHistory(userId) {
 async function sendMessage() {
   const text = userInput.value.trim();
   const imageBase64 = pendingImageBase64;
-  
+
   if (!text && !imageBase64) return;
   userInput.value = '';
   removeImage(); // Clear preview after sending
@@ -251,13 +274,13 @@ async function sendMessage() {
     const res = await fetch('/reply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        user_id: currentUserId, 
+      body: JSON.stringify({
+        user_id: currentUserId,
         message: text || "Suggest products based on this image",
-        image_url: imageBase64 
+        image_url: imageBase64
       }),
     });
-    
+
     if (!res.ok) throw new Error('Reply failed');
     const data = await res.json();
 
@@ -322,7 +345,7 @@ async function deleteConversation(userId) {
 
 async function clearCurrentChat() {
   if (!currentUserId) return;
-  
+
   const result = await Swal.fire({
     title: 'مسح المحادثة؟',
     text: "هلต้องการ مسح جميع الرسائل؟",
@@ -379,7 +402,7 @@ function renderConversations() {
     if (isArabic(conv.title)) item.classList.add('rtl');
     item.dataset.userId = conv.user_id;
     if (conv.user_id === currentUserId) item.classList.add('active');
-    
+
     item.innerHTML = `
       <div class="conversation-info" onclick="loadHistory('${conv.user_id}'); if(window.innerWidth<=768) closeSidebar();">
         <div class="conversation-title">${esc(conv.title)}</div>
@@ -415,7 +438,7 @@ function handleFileSelect(e) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = function(event) {
+  reader.onload = function (event) {
     pendingImageBase64 = event.target.result;
     const preview = document.getElementById('imagePreview');
     const container = document.getElementById('imagePreviewContainer');
@@ -436,7 +459,7 @@ function removeImage() {
 }
 
 // ===== EVENT LISTENERS =====
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   const newChatBtn = document.getElementById('newChatBtn');
   const clearChatBtn = document.getElementById('clearCurrentChatBtn');
   const themeBtn = document.getElementById('themeToggleBtn');
@@ -448,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (clearChatBtn) clearChatBtn.addEventListener('click', clearCurrentChat);
   if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
   if (menuBtn) menuBtn.addEventListener('click', toggleSidebar);
-  
+
   if (attachBtn) attachBtn.addEventListener('click', () => {
     document.getElementById('fileInput').click();
   });
@@ -460,21 +483,21 @@ document.addEventListener('DOMContentLoaded', function() {
   if (removeImageBtn) removeImageBtn.addEventListener('click', removeImage);
 
   if (infoBtn) infoBtn.addEventListener('click', () => {
-      Swal.fire({
-        title: 'ضفاف بوت | DhifafBot',
-        text: 'مساعدك الذكي للتسوق',
-        icon: 'info',
-        background: document.body.classList.contains('dark') ? '#0f172a' : '#fff',
-        color: document.body.classList.contains('dark') ? '#f1f5f9' : '#0f172a',
-        confirmButtonColor: '#0ea5e9',
-        confirmButtonText: 'حسناً',
-        showClass: {
-          popup: 'animate__animated animate__fadeInUp'
-        },
-        hideClass: {
-          popup: 'animate__animated animate__fadeOutDown'
-        },
-        html: `
+    Swal.fire({
+      title: 'ضفاف بوت | DhifafBot',
+      text: 'مساعدك الذكي للتسوق',
+      icon: 'info',
+      background: document.body.classList.contains('dark') ? '#0f172a' : '#fff',
+      color: document.body.classList.contains('dark') ? '#f1f5f9' : '#0f172a',
+      confirmButtonColor: '#0ea5e9',
+      confirmButtonText: 'حسناً',
+      showClass: {
+        popup: 'animate__animated animate__fadeInUp'
+      },
+      hideClass: {
+        popup: 'animate__animated animate__fadeOutDown'
+      },
+      html: `
           <div style="text-align: right; direction: rtl; margin-top: 1rem; font-family: 'IBM Plex Sans Arabic', sans-serif;">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
               <span style="color: #0ea5e9;">✦</span> <span>ابحث عن المنتجات بسهولة باستخدام اللغة الطبيعية</span>
@@ -494,17 +517,17 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
           <p style="margin-top: 1.5rem; font-size: 0.8rem; opacity: 0.7;">v1.0.0</p>
         `,
-        customClass: {
-          container: 'swal-container',
-          popup: 'swal-popup',
-          title: 'swal-title',
-          htmlContainer: 'swal-html'
-        },
-        backdrop: true,
-        allowOutsideClick: true,
-        allowEscapeKey: true
-      });
+      customClass: {
+        container: 'swal-container',
+        popup: 'swal-popup',
+        title: 'swal-title',
+        htmlContainer: 'swal-html'
+      },
+      backdrop: true,
+      allowOutsideClick: true,
+      allowEscapeKey: true
     });
+  });
 
 });
 
