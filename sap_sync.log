@@ -75,3 +75,6 @@
 2026-05-14 13:58:43,896 - INFO - HTTP Request: GET https://dbc-online.free.beeceptor.com/getItems "HTTP/1.1 200 OK"
 2026-05-14 13:58:46,297 - INFO - Processing 15659 items from API...
 2026-05-14 13:58:53,694 - INFO - Batch Sync Complete. Updated 15072 products.
+2026-05-14 13:59:03,054 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-14 13:59:03,055 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-14 13:59:03,055 - INFO - Scheduler started
