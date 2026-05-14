@@ -233,3 +233,124 @@
 2026-05-14 19:44:06,983 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
 2026-05-14 19:44:06,983 - INFO - Added job "sync_sap_data" to job store "default"
 2026-05-14 19:44:06,983 - INFO - Scheduler started
+2026-05-15 03:19:11,370 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 03:19:11,371 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 03:19:11,371 - INFO - Scheduler started
+2026-05-15 03:20:16,312 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:20:30,831 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:22:26,081 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:22:26,284 - INFO - Retrying request to /chat/completions in 0.449036 seconds
+2026-05-15 03:22:29,904 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:22:58,473 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:23:01,601 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:23:58,024 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:24:01,131 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:24:43,069 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:25:02,003 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:25:23,335 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:25:32,688 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:25:47,210 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:25:52,756 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:26:46,059 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:26:52,061 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:27:09,004 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:27:15,802 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:28:05,582 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:28:07,961 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:28:24,762 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:28:29,528 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:29:00,347 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:29:07,551 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:29:13,747 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:29:20,639 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:29:36,160 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:29:39,176 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:38:51,487 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:38:55,801 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:39:18,840 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:39:23,167 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:39:43,067 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:39:47,403 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:41:03,086 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 03:41:03,087 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 03:41:03,087 - INFO - Scheduler started
+2026-05-15 03:45:22,906 - INFO - Starting Batch SAP Sync...
+2026-05-15 03:45:22,970 - INFO - Connecting to: https://dbc-online.free.beeceptor.com/getItems
+2026-05-15 03:45:24,705 - INFO - HTTP Request: GET https://dbc-online.free.beeceptor.com/getItems "HTTP/1.1 200 OK"
+2026-05-15 03:45:32,315 - INFO - Processing 15634 items from API...
+2026-05-15 03:45:41,320 - INFO - Batch Sync Complete. Updated 15042 products.
+2026-05-15 03:46:25,973 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 03:46:25,974 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 03:46:25,974 - INFO - Scheduler started
+2026-05-15 03:46:35,782 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:46:37,706 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:49:43,948 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 03:49:43,949 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 03:49:43,949 - INFO - Scheduler started
+2026-05-15 03:49:50,779 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 03:49:50,779 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 03:49:50,780 - INFO - Scheduler started
+2026-05-15 03:49:57,671 - INFO - Starting Batch SAP Sync...
+2026-05-15 03:49:57,718 - INFO - Connecting to: https://dbc-online.free.beeceptor.com/getItems
+2026-05-15 03:49:59,185 - INFO - HTTP Request: GET https://dbc-online.free.beeceptor.com/getItems "HTTP/1.1 200 OK"
+2026-05-15 03:50:03,245 - INFO - Processing 15634 items from API...
+2026-05-15 03:50:11,519 - INFO - Batch Sync Complete. Updated 15241 products.
+2026-05-15 03:52:49,319 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:52:53,463 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:53:42,851 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:53:44,841 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:55:22,197 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:55:25,123 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:55:50,163 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:55:53,187 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:56:40,936 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 03:56:42,412 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:01:17,434 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:01:19,021 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:01:28,564 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 04:01:28,565 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 04:01:28,565 - INFO - Scheduler started
+2026-05-15 04:01:42,696 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:01:44,489 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:02:27,890 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:02:31,366 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:06:06,316 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:06:09,844 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:06:28,788 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:06:30,766 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:06:46,882 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:06:49,008 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:07:25,908 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:07:28,315 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:09:03,091 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 04:09:03,092 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 04:09:03,092 - INFO - Scheduler started
+2026-05-15 04:09:42,368 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:09:46,966 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:09:57,570 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:10:00,781 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:10:10,899 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:10:13,165 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:10:51,440 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:10:54,298 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:14:40,113 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 04:14:40,113 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 04:14:40,113 - INFO - Scheduler started
+2026-05-15 04:15:38,639 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:16:09,819 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:16:11,882 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:16:13,219 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:17:11,056 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:17:12,640 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:17:13,936 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:17:15,407 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-15 04:17:15,408 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-15 04:17:15,408 - INFO - Scheduler started
+2026-05-15 04:17:46,498 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:17:48,921 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:20:08,770 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:20:11,498 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:20:24,564 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:20:26,827 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:21:44,958 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-15 04:21:49,949 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"

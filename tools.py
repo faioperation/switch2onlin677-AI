@@ -148,7 +148,11 @@ def search_products(
             )
             SELECT * FROM search_results
             WHERE score > 0.05
-            ORDER BY score DESC, item_name ASC
+            ORDER BY 
+                CASE WHEN :sort_by = 'price_asc' THEN price END ASC,
+                CASE WHEN :sort_by = 'price_desc' THEN price END DESC,
+                score DESC, 
+                item_name ASC
             LIMIT :limit OFFSET :skip
         """)
         
@@ -163,7 +167,8 @@ def search_products(
             "max_price": max_price,
             "in_stock": True if in_stock else False,
             "limit": limit,
-            "skip": skip
+            "skip": skip,
+            "sort_by": sort_by
         })
         
         products = []
@@ -187,7 +192,10 @@ def search_products(
                 "message": f"No items matching '{query_cleaned}' were found in the inventory of 15,597 products."
             }
 
-        formatted = format_products(products, limit)
+        # Apply sorting based on user preference (price_asc, price_desc, etc.)
+        sorted_products = sort_products(products, sort_by)
+
+        formatted = format_products(sorted_products, limit)
 
         return {
             "found": True,
