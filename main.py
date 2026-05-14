@@ -49,7 +49,22 @@ MAX_HISTORY = 70
 LEADS_FILE = os.path.join(os.path.dirname(__file__), "leads.json")
 LEADS_API_URL = "https://test11.fireai.agency/api/v1/leads/"
 
+RATE_FILE = os.path.join(os.path.dirname(__file__), "rate.json")
 
+
+def load_iqd_rate():
+    if not os.path.exists(RATE_FILE):
+        return 1310
+
+    with open(RATE_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return float(data.get("iqd_rate", 1310))
+
+
+def save_iqd_rate(rate: float):
+    with open(RATE_FILE, "w", encoding="utf-8") as f:
+        json.dump({"iqd_rate": rate}, f, ensure_ascii=False, indent=2)
 def load_leads():
     if not os.path.exists(LEADS_FILE):
         return []
@@ -304,6 +319,8 @@ def chat_ui():
     index_path = os.path.join(os.path.dirname(__file__), "static/index.html")
     return FileResponse(index_path)
 
+class RateRequest(BaseModel):
+    iqd_rate: float
 # API Endpoints
 class ChatRequest(BaseModel):
     user_id: str
@@ -335,7 +352,20 @@ def delete_chat_history(user_id: str, db: Session = Depends(get_db)):
 def get_leads():
     return load_leads()
 
+@app.get("/rate")
+def get_rate():
+    return {
+        "iqd_rate": load_iqd_rate()
+    }
 
+
+@app.post("/rate")
+def update_rate(data: RateRequest):
+    save_iqd_rate(data.iqd_rate)
+    return {
+        "success": True,
+        "iqd_rate": data.iqd_rate
+    }
 @app.post("/reply", response_model=ChatResponse)
 def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     history = get_history(data.user_id, db)
