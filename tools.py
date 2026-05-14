@@ -1,3 +1,5 @@
+import json
+
 from database import SessionLocal
 from models import Product
 import os
@@ -9,13 +11,25 @@ BASE_URL = os.getenv("SAP_API_URL", "https://dbc-online.free.beeceptor.com")
 ORDER_BASE_URL = os.getenv("ORDER_BASE_URL", "https://yoursite.com/order")
 
 # Currency Configuration
-IQD_RATE = 1310  # 1 USD = 1310 IQD
+RATE_FILE = os.path.join(os.path.dirname(__file__), "rate.json")
+
+
+def get_iqd_rate():
+    if not os.path.exists(RATE_FILE):
+        return 1310
+
+    try:
+        with open(RATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return float(data.get("iqd_rate", 1310))
+    except Exception:
+        return 1310
 CURRENCY_SYMBOL = "IQD"
 
 def convert_to_iqd(price_usd: float) -> str:
     if not price_usd or price_usd == 0:
         return "N/A"
-    iqd_price = int(price_usd * IQD_RATE)
+    iqd_price = int(price_usd * get_iqd_rate())
     return f"{iqd_price:,} {CURRENCY_SYMBOL}"
 
 def apply_filters(products: List[Dict], min_price: float = None, max_price: float = None, in_stock: bool = None) -> List[Dict]:
