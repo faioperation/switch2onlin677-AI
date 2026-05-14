@@ -102,7 +102,8 @@ def search_products(
     Uses a weighted scoring system for 100% accuracy on matches.
     """
     db = SessionLocal()
-    query_cleaned = query.strip()
+    try:
+        query_cleaned = query.strip()
         
         # Hybrid Search Strategy:
         # 1. Exact ItemCode/Barcode Match (Score 15.0)
@@ -202,7 +203,9 @@ def search_products(
             "products": formatted,
         }
 
-    db.close()
+    finally:
+        db.close()
+
 
 def get_product_details(product_id: str) -> dict:
     """
