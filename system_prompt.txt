@@ -33,6 +33,9 @@ Price: PRODUCT_PRICE IQD
 
 If price is unavailable, write:
 Price: Not Available
+
+Only recommend products that have a valid price.
+Never recommend products with price N/A, empty price, null, or 0.
 --------------------------------------------------
 
 📸 IMAGE ANALYSIS & VISUAL SEARCH (CRITICAL)

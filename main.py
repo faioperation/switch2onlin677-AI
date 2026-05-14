@@ -396,6 +396,10 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                     # ONLY search_products results go to the UI for card rendering
                     if tool_name == "search_products" and "products" in tool_result:
                         for p in tool_result["products"]:
+                            price = str(p.get("price", "")).strip().lower()
+
+                            if price in ["", "n/a", "na", "none", "null", "0", "0.0"]:
+                                continue
                             products.append({
                                 "id":          p.get("id", ""),
                                 "name":        p.get("name", ""),
