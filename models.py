@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Numeric, func
+from sqlalchemy.dialects.postgresql import JSONB
 from database import Base
 
 class ChatHistory(Base):
@@ -14,11 +15,11 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(String, index=True, nullable=True) # Removed unique constraint to allow multi-item orders
-    user_id = Column(String, nullable=False)          # session ID
-    customer_name = Column(String, nullable=False)    # new
-    customer_email = Column(String, nullable=False)   # new
-    product_id = Column(String, nullable=False)
+    order_id = Column(String, index=True, nullable=True) # Unique ID for the checkout session
+    user_id = Column(String, nullable=False)            # session ID
+    customer_name = Column(String, nullable=False)
+    customer_email = Column(String, nullable=False)
+    product_id = Column(String, nullable=False)         # Barcode or ItemCode
     product_name = Column(String, nullable=False)
     quantity = Column(Integer, default=1)
     address = Column(String, nullable=False)
@@ -28,11 +29,24 @@ class Order(Base):
 class Product(Base):
     __tablename__ = "products"
 
-    item_code = Column(String, primary_key=True, index=True)
+    barcode = Column(String, primary_key=True, index=True) # Master Linking Key
+    item_code = Column(String, unique=True, index=True, nullable=True)
     item_name = Column(Text, index=True, nullable=False)
-    barcode = Column(String, index=True, nullable=True)
-    price = Column(Integer, default=0) 
-    available_qty = Column(Integer, default=0)
-    category = Column(String, nullable=True)
+    brand = Column(String, index=True, nullable=True)
+    category = Column(String, index=True, nullable=True)
+    description = Column(Text, nullable=True)
     image_url = Column(String, nullable=True)
-    last_updated = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    # AI Intelligence Fields
+    skin_type = Column(String, nullable=True)
+    concerns = Column(JSONB, nullable=True)    # Changed to JSONB for GIN Index
+    tags = Column(JSONB, nullable=True)        # Changed to JSONB for GIN Index
+    
+    # Commerce Data (Synced from SAP)
+    price = Column(Numeric(12, 2), default=0.00)
+    available_qty = Column(Integer, default=0)
+    
+    # Metadata
+    last_synced_sap = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -84,11 +84,17 @@ function formatDate(isoString) {
 function buildProductCard(p) {
   const name = p.name || 'Product';
   const firstLetter = name.trim().charAt(0).toUpperCase() || 'P';
+  const imgUrl = p.image_url;
   
+  const visualContent = imgUrl 
+    ? `<img src="${esc(imgUrl)}" class="product-card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+       <div class="product-avatar" style="display:none;">${esc(firstLetter)}</div>`
+    : `<div class="product-avatar">${esc(firstLetter)}</div>`;
+
   return `
     <div class="product-card">
       <div class="product-visual">
-        <div class="product-avatar">${esc(firstLetter)}</div>
+        ${visualContent}
       </div>
       <div class="card-info">
         <div class="card-header-row">
@@ -100,7 +106,7 @@ function buildProductCard(p) {
     </div>`;
 }
 
-function addMessage(role, content, products, messageId) {
+function addMessage(role, content, products, messageId, imageUrl) {
   products = Array.isArray(products) ? products : [];
 
   const row = document.createElement('div');
@@ -108,19 +114,31 @@ function addMessage(role, content, products, messageId) {
   if (messageId) row.dataset.messageId = messageId;
 
   if (role === 'user') {
-    if (!content || !content.trim()) return;
-    
     const group = document.createElement('div');
     group.className = 'msg-group';
     
     const bubble = document.createElement('div');
     bubble.className = 'user-bubble';
-    bubble.innerHTML = esc(content).replace(/\n/g, '<br>');
+
+    // If there's an image, show it
+    if (imageUrl) {
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.className = 'msg-image-preview';
+      bubble.appendChild(img);
+    }
+    
+    if (content && content.trim()) {
+      const textSpan = document.createElement('div');
+      textSpan.innerHTML = esc(content).replace(/\n/g, '<br>');
+      bubble.appendChild(textSpan);
+    }
     
     group.appendChild(bubble);
     row.appendChild(group);
     messagesDiv.appendChild(row);
   } else {
+    // Bot response logic
     if (content && content.trim()) {
       const textRow = document.createElement('div');
       textRow.className = 'msg-row bot';
@@ -196,7 +214,7 @@ async function loadHistory(userId) {
     const history = await res.json();
     hideTyping();
     history.forEach(msg => {
-      addMessage(msg.role, msg.content, msg.products, msg.id);
+      addMessage(msg.role, msg.content, msg.products, msg.id, msg.image_url);
     });
     
     updateEmptyState();
@@ -226,7 +244,7 @@ async function sendMessage() {
     await newChat();
   }
 
-  addMessage('user', text || (imageBase64 ? "Searched with image" : ""), [], 'temp');
+  addMessage('user', text || (imageBase64 ? "Searched with image" : ""), [], 'temp', imageBase64);
   showTyping();
 
   try {
@@ -247,7 +265,7 @@ async function sendMessage() {
     if (tempUserMsg) tempUserMsg.remove();
 
     hideTyping();
-    addMessage('user', text || "📷 Image search", [], data.user_message_id);
+    addMessage('user', text || "📷 Image search", [], data.user_message_id, imageBase64);
     addMessage('bot', data.reply, data.products, data.assistant_message_id);
 
     loadConversations();

@@ -436,14 +436,25 @@ body {
 
 .user-bubble {
   background: var(--color-user-msg);
-  color: var(--color-text-primary);
+  color: white; /* Changed to white for better contrast on primary blue */
   padding: 10px 16px;
   border-radius: 18px;
   font-size: 0.95rem;
   line-height: 1.4;
   word-wrap: break-word;
   box-shadow: var(--shadow-sm);
-  border: 1px solid rgba(37, 211, 102, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-image-preview {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .bot-bubble {
@@ -481,13 +492,26 @@ body {
 
 /* Stylized Icon Area instead of Image */
 .product-visual {
-  height: 80px; /* Reduced height as requested */
-  background: linear-gradient(135deg, rgba(37, 211, 102, 0.1), rgba(18, 140, 126, 0.1));
+  height: 180px;
+  background: var(--color-bot-msg);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.product-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+  padding: 8px;
+}
+
+.product-card:hover .product-card-img {
+  transform: scale(1.05);
 }
 
 .product-visual::after {

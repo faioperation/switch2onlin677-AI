@@ -14,36 +14,34 @@ from dotenv import load_dotenv
 from database import engine, get_db, Base, SessionLocal
 from models import ChatHistory, Order, Product
 from tools import search_products, get_product_details, check_availability
-from sync_sap import sync_products
+from sync_service import sync_sap_data
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 load_dotenv()
 
+# Ensure tables exist on startup
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+# Initialize Scheduler
+scheduler = AsyncIOScheduler()
+
+@app.on_event("startup")
+async def start_scheduler():
+    # Schedule SAP sync to run every 24 hours
+    scheduler.add_job(sync_sap_data, 'interval', hours=24)
+    scheduler.start()
+    print("Background Scheduler Started: SAP Sync scheduled every 24 hours.")
+
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-@app.on_event("startup")
-def startup_event():
-    db = SessionLocal()
-    try:
-        # Prioritize local JSON sync if getItems.json exists
-        json_path = os.path.join(os.path.dirname(__file__), "getItems.json")
-        if os.path.exists(json_path):
-            print("Detected getItems.json. Triggering JSON sync for 100% accuracy...")
-            sync_products()
-        else:
-            print("No getItems.json found. System running in standby.")
-    finally:
-        db.close()
-
-@app.post("/sync")
-def trigger_sync(background_tasks: BackgroundTasks):
-    """Manually trigger a full product sync from getItems.json."""
-    background_tasks.add_task(sync_products)
-    return {"message": "JSON Synchronization started in background."}
+@app.get("/health")
+def health_check():
+    """Health check endpoint for production monitoring."""
+    return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
 
 MAX_HISTORY = 70
 
@@ -402,10 +400,10 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                                 "id":          p.get("id", ""),
                                 "name":        p.get("name", ""),
                                 "price":       p.get("price", ""),
-                                "barcode":     p.get("barcode", ""),
+                                "barcode":     p.get("id", ""), # Barcode is stored in 'id' key from tools.py
                                 "description": p.get("description", ""),
                                 "image_url":   p.get("image_url", ""),
-                                "stock":       p.get("stock", 0),
+                                "stock":       p.get("available_qty", 0),
                             })
                         if products:
                             image_url = products[0]["image_url"]
