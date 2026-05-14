@@ -1,0 +1,71 @@
+[
+  {
+    "user_id": "8a21cf2e-9a9d-4e53-80cd-993acf815928",
+    "interested_products": [
+      {
+        "product_id": "3614274459708",
+        "name": "Armani Perfume Si Passione Red Musk 50Ml"
+      },
+      {
+        "product_id": "3614274459869",
+        "name": "ARMANI PERFUME SI PASSIONE RED MUSK 100ML"
+      },
+      {
+        "product_id": "3605522048263",
+        "name": "Armani SI le parfume 40 ml"
+      }
+    ],
+    "created_at": "2026-05-14T19:00:30.369657"
+  },
+  {
+    "user_id": "07764fb0-bef1-4c81-9567-41d0e1daa34c",
+    "interested_products": [
+      {
+        "product_id": "3605522035485",
+        "name": "Armani SI edt50 ml"
+      },
+      {
+        "product_id": "3605521816511",
+        "name": "Armani SI edp 30 ml"
+      },
+      {
+        "product_id": "3605521816580",
+        "name": "Armani SI edp 50 ml"
+      }
+    ],
+    "created_at": "2026-05-14T19:04:03.017701"
+  },
+  {
+    "user_id": "07764fb0-bef1-4c81-9567-41d0e1daa34c",
+    "interested_products": [
+      {
+        "product_id": "800897024307",
+        "name": "NYX - pmu Pofs01 Primer"
+      },
+      {
+        "product_id": "800897003777",
+        "name": "NYX - The Brow Glue 01"
+      },
+      {
+        "product_id": "800897004064",
+        "name": "NYX - Lip Lingerie Lxxl 15"
+      }
+    ],
+    "created_at": "2026-05-14T19:04:42.405780"
+  },
+  {
+    "user_id": "15b3811f-bcb1-4f04-9692-579e867b91af",
+    "interested_products": [
+      {
+        "product_id": null,
+        "name": "Armani SI edp 30 ml"
+      }
+    ],
+    "created_at": "2026-05-14T19:12:00.512860"
+  },
+  {
+    "user_id": "c189b40e-902c-445d-8293-2af38dbebd17",
+    "interested_products": "Armani SI edp 50 ml",
+    "created_at": "2026-05-14T19:16:41.873812"
+  }
+]

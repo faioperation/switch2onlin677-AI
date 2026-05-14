@@ -10,6 +10,7 @@ import random
 import string
 import datetime
 from dotenv import load_dotenv
+import requests
 
 from database import engine, get_db, Base, SessionLocal
 from models import ChatHistory, Order, Product
@@ -44,6 +45,46 @@ def health_check():
     return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
 
 MAX_HISTORY = 70
+
+LEADS_FILE = os.path.join(os.path.dirname(__file__), "leads.json")
+LEADS_API_URL = "https://test11.fireai.agency/api/v1/leads/"
+
+
+def load_leads():
+    if not os.path.exists(LEADS_FILE):
+        return []
+    with open(LEADS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def load_company_knowledge():
+    path = os.path.join(os.path.dirname(__file__), "company_knowledge.txt")
+    if not os.path.exists(path):
+        return ""
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+    
+
+def save_lead(user_id: str, products: list):
+    if not products:
+        return
+
+    lead_payload = {
+        "user_id": user_id,
+        "interested_products": products[0].get("name") if products else ""
+    }
+
+    try:
+        response = requests.post(
+            LEADS_API_URL,
+            json=lead_payload,
+            timeout=10
+        )
+
+        print("LEAD POST STATUS:", response.status_code)
+        print("LEAD POST RESPONSE:", response.text)
+
+    except Exception as e:
+        print("LEAD POST ERROR:", str(e))
 
 FIXED_WELCOME_EN = (
     "✨ Welcome to DhifafBot, your personal premium concierge. "
@@ -290,6 +331,10 @@ def delete_chat_history(user_id: str, db: Session = Depends(get_db)):
     db.commit()
     return {"deleted": deleted}
 
+@app.get("/leads")
+def get_leads():
+    return load_leads()
+
 
 @app.post("/reply", response_model=ChatResponse)
 def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
@@ -332,6 +377,22 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
 
     # NORMAL AI FLOW (for all other messages)
     system_prompt = load_system_prompt()
+
+    company_knowledge = load_company_knowledge()
+
+    system_prompt += f"""
+
+    COMPANY KNOWLEDGE:
+    Use this information when users ask about Dhifaf Baghdad, DBC, company profile, branches, brands, offices, app, partners, or company background.
+
+    {company_knowledge}
+
+    Rules:
+    - Answer company questions using this company knowledge.
+    - If the user asks in Arabic, answer in Arabic.
+    - If the user asks in English, answer in English.
+    - Do not invent company facts not listed here.
+    """
     messages_for_ai = [{"role": "system", "content": system_prompt}]
     for msg in history:
         content = msg["content"]
@@ -411,13 +472,20 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                             })
                         if products:
                             image_url = products[0]["image_url"]
+
+
+                
                     
                     # Note: get_product_details results are NOT added to the 'products' list.
                     # They are passed to the AI via 'messages_for_ai' for internal info (price/stock).
                     if tool_name == "get_product_details":
-                        # We still want to capture the image for the response if relevant
                         if not image_url:
                             image_url = tool_result.get("image_url")
+
+                        interested_product = tool_result.get("item_name") or tool_result.get("name")
+
+                        if interested_product:
+                            save_lead(data.user_id, [{"name": interested_product}])
 
                 messages_for_ai.append({
                     "role": "tool",
