@@ -50,3 +50,17 @@ class Product(Base):
     last_synced_sap = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+class ProductSearchIndex(Base):
+    __tablename__ = "product_search_index"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(String, unique=True, index=True, nullable=False)
+    item_code = Column(String, index=True, nullable=True)
+    barcode = Column(String, index=True, nullable=True)
+    item_name = Column(Text, index=True, nullable=False)
+    brand = Column(String, index=True, nullable=True)
+    category = Column(String, index=True, nullable=True)
+    subcategory = Column(String, index=True, nullable=True)
+    search_text = Column(Text, index=True, nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
