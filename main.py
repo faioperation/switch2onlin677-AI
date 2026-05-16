@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from openai import OpenAI
@@ -17,6 +17,9 @@ from models import ChatHistory, Order, Product
 from tools import search_products, get_product_details, check_availability
 from sync_service import sync_sap_data
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from pathlib import Path
+from pypdf import PdfReader
 
 load_dotenv()
 
@@ -51,6 +54,18 @@ LEADS_API_URL = "https://test11.fireai.agency/api/v1/leads/"
 
 RATE_FILE = os.path.join(os.path.dirname(__file__), "rate.json")
 
+BASE_DIR = Path(__file__).resolve().parent
+
+SYSTEM_PROMPT_FILE = BASE_DIR / "system_prompt.txt"
+LEGACY_COMPANY_KNOWLEDGE_FILE = BASE_DIR / "company_knowledge.txt"
+
+KNOWLEDGE_BASE_DIR = BASE_DIR / "knowledge_base"
+KNOWLEDGE_INDEX_FILE = KNOWLEDGE_BASE_DIR / "index.json"
+
+ALLOWED_KNOWLEDGE_EXTENSIONS = {".pdf", ".txt"}
+MAX_KNOWLEDGE_UPLOAD_MB = 20
+
+KNOWLEDGE_BASE_DIR.mkdir(exist_ok=True)
 
 def load_iqd_rate():
     if not os.path.exists(RATE_FILE):
@@ -71,12 +86,74 @@ def load_leads():
     with open(LEADS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
+def load_knowledge_index() -> list:
+    if not KNOWLEDGE_INDEX_FILE.exists():
+        return []
+
+    with open(KNOWLEDGE_INDEX_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_knowledge_index(items: list):
+    with open(KNOWLEDGE_INDEX_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
+
+
+def extract_text_from_pdf(file_path: Path) -> str:
+    reader = PdfReader(str(file_path))
+    pages = []
+
+    for page_number, page in enumerate(reader.pages, start=1):
+        text = page.extract_text() or ""
+        if text.strip():
+            pages.append(f"\n--- Page {page_number} ---\n{text.strip()}")
+
+    return "\n".join(pages).strip()
+
+
+def extract_text_from_upload(file_path: Path) -> str:
+    suffix = file_path.suffix.lower()
+
+    if suffix == ".pdf":
+        return extract_text_from_pdf(file_path)
+
+    if suffix == ".txt":
+        return file_path.read_text(encoding="utf-8", errors="ignore").strip()
+
+    raise HTTPException(
+        status_code=400,
+        detail="Only PDF and TXT knowledge files are supported."
+    )
+
+
+def safe_upload_name(filename: str) -> str:
+    safe = "".join(
+        c if c.isalnum() or c in {"-", "_", "."} else "_"
+        for c in filename
+    )
+    return safe or "knowledge_file"
+
+
 def load_company_knowledge():
-    path = os.path.join(os.path.dirname(__file__), "company_knowledge.txt")
-    if not os.path.exists(path):
-        return ""
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+    parts = []
+
+
+    # Load uploaded PDF/TXT knowledge files
+    for item in load_knowledge_index():
+        text_path = KNOWLEDGE_BASE_DIR / item.get("text_filename", "")
+
+        if text_path.exists():
+            text = text_path.read_text(
+                encoding="utf-8",
+                errors="ignore"
+            ).strip()
+
+            if text:
+                parts.append(
+                    f"SOURCE: {item.get('original_filename', text_path.name)}\n{text}"
+                )
+
+    return "\n\n".join(parts)
     
 
 def save_lead(user_id: str, products: list):
@@ -126,17 +203,24 @@ FIXED_GOODBYE_AR = (
 )
 
 # Load system prompt from file
-def load_system_prompt():
-    prompt_path = os.path.join(os.path.dirname(__file__), "system_prompt.txt")
-    with open(prompt_path, "r", encoding="utf-8") as f:
-        template = f.read()
-    # Format with bilingual messages
+def render_prompt_template(template: str) -> str:
     return template.format(
         FIXED_WELCOME_EN=FIXED_WELCOME_EN,
         FIXED_WELCOME_AR=FIXED_WELCOME_AR,
         FIXED_GOODBYE_EN=FIXED_GOODBYE_EN,
         FIXED_GOODBYE_AR=FIXED_GOODBYE_AR
     )
+
+
+def load_system_prompt():
+    if not SYSTEM_PROMPT_FILE.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="system_prompt.txt was not found."
+        )
+
+    template = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
+    return render_prompt_template(template)
 
 
 TOOL_DEFINITIONS = [
@@ -322,6 +406,15 @@ def chat_ui():
 class RateRequest(BaseModel):
     iqd_rate: float
 # API Endpoints
+class PromptUpdateRequest(BaseModel):
+    prompt: str
+
+
+class PromptResponse(BaseModel):
+    prompt: str
+    rendered_prompt: str | None = None
+
+
 class ChatRequest(BaseModel):
     user_id: str
     message: str
@@ -366,6 +459,158 @@ def update_rate(data: RateRequest):
         "success": True,
         "iqd_rate": data.iqd_rate
     }
+
+@app.get("/prompt", response_model=PromptResponse)
+def get_prompt(render: bool = False):
+    if not SYSTEM_PROMPT_FILE.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="system_prompt.txt was not found."
+        )
+
+    prompt = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
+
+    return PromptResponse(
+        prompt=prompt,
+        rendered_prompt=render_prompt_template(prompt) if render else None
+    )
+
+
+@app.put("/prompt", response_model=PromptResponse)
+def update_prompt(data: PromptUpdateRequest):
+    if not data.prompt.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Prompt cannot be empty."
+        )
+
+    try:
+        rendered = render_prompt_template(data.prompt)
+    except KeyError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown prompt variable: {e}. "
+                "Allowed variables: FIXED_WELCOME_EN, FIXED_WELCOME_AR, "
+                "FIXED_GOODBYE_EN, FIXED_GOODBYE_AR"
+            )
+        )
+
+    SYSTEM_PROMPT_FILE.write_text(data.prompt, encoding="utf-8")
+
+    return PromptResponse(
+        prompt=data.prompt,
+        rendered_prompt=rendered
+    )
+
+
+@app.get("/knowledge")
+def list_knowledge_files():
+    return {
+        "legacy_company_knowledge_exists": LEGACY_COMPANY_KNOWLEDGE_FILE.exists(),
+        "files": load_knowledge_index(),
+    }
+
+
+@app.post("/knowledge/upload")
+async def upload_knowledge_file(file: UploadFile = File(...)):
+    original_name = file.filename or "knowledge_file"
+    suffix = Path(original_name).suffix.lower()
+
+    if suffix not in ALLOWED_KNOWLEDGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF and TXT files are supported."
+        )
+
+    content = await file.read()
+
+    max_bytes = MAX_KNOWLEDGE_UPLOAD_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File is too large. Max size is {MAX_KNOWLEDGE_UPLOAD_MB} MB."
+        )
+
+    timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    random_part = "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=6)
+    )
+
+    knowledge_id = f"{timestamp}_{random_part}"
+    safe_name = safe_upload_name(original_name)
+
+    stored_filename = f"{knowledge_id}_{safe_name}"
+    stored_path = KNOWLEDGE_BASE_DIR / stored_filename
+    stored_path.write_bytes(content)
+
+    extracted_text = extract_text_from_upload(stored_path)
+
+    if not extracted_text:
+        stored_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail="No readable text was found in the uploaded file."
+        )
+
+    text_filename = f"{stored_filename}.txt"
+    text_path = KNOWLEDGE_BASE_DIR / text_filename
+    text_path.write_text(extracted_text, encoding="utf-8")
+
+    items = load_knowledge_index()
+
+    record = {
+        "id": knowledge_id,
+        "original_filename": original_name,
+        "stored_filename": stored_filename,
+        "text_filename": text_filename,
+        "content_type": file.content_type,
+        "uploaded_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "characters": len(extracted_text),
+    }
+
+    items.append(record)
+    save_knowledge_index(items)
+
+    return {
+        "success": True,
+        "file": record
+    }
+
+
+@app.delete("/knowledge/{knowledge_id}")
+def delete_knowledge_file(knowledge_id: str):
+    items = load_knowledge_index()
+
+    match = next(
+        (item for item in items if item.get("id") == knowledge_id),
+        None
+    )
+
+    if not match:
+        raise HTTPException(
+            status_code=404,
+            detail="Knowledge file not found."
+        )
+
+    for key in ["stored_filename", "text_filename"]:
+        filename = match.get(key)
+        if filename:
+            (KNOWLEDGE_BASE_DIR / filename).unlink(missing_ok=True)
+
+    save_knowledge_index([
+        item for item in items
+        if item.get("id") != knowledge_id
+    ])
+
+    return {
+        "success": True,
+        "deleted": knowledge_id
+    }
+
+
+
+
 @app.post("/reply", response_model=ChatResponse)
 def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     history = get_history(data.user_id, db)
