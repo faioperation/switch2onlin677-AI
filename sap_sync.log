@@ -376,3 +376,6 @@
 2026-05-16 12:45:03,890 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
 2026-05-16 12:45:03,890 - INFO - Added job "sync_sap_data" to job store "default"
 2026-05-16 12:45:03,890 - INFO - Scheduler started
+2026-05-16 12:47:54,455 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-16 12:47:54,456 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-16 12:47:54,457 - INFO - Scheduler started
