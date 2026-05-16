@@ -64,7 +64,8 @@ async def sync_sap_data():
         
         for item in items:
             # Match keys based on your API response
-            barcode = item.get("ItemBarcode")
+            # Normalize barcode from API (strip leading zeros for matching)
+            barcode = str(item.get("ItemBarcode", "")).strip().lstrip('0')
             price = item.get("ItemPrice")
             stock = item.get("ItemAvaliableQty")
 
@@ -72,7 +73,7 @@ async def sync_sap_data():
                 continue
 
             # Update only if barcode matches
-            result = db.query(Product).filter(Product.barcode == str(barcode)).update({
+            result = db.query(Product).filter(Product.barcode == barcode).update({
                 "price": float(price) if price is not None else 0.0,
                 "available_qty": int(stock) if stock is not None else 0,
                 "last_synced_sap": datetime.now()

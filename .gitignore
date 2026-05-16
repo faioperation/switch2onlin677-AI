@@ -48,3 +48,5 @@ vercel.json
 
 # Custom Exclusions
 scratch/
+*.log
+sap_sync.log

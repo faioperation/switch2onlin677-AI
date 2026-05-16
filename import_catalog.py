@@ -52,7 +52,10 @@ def import_catalog(file_path):
                 error_count += 1
                 continue
 
-            barcode = str(barcode_raw).strip()
+            # Normalize barcode: convert to string and remove leading zeros
+            barcode = str(barcode_raw).strip().lstrip('0')
+            if barcode == "": 
+                barcode = "0"
 
             # Handle Price from Excel if it exists
             raw_price = row.get(price_col) if price_col else 0.0
