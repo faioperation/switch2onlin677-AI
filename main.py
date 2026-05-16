@@ -13,8 +13,16 @@ from dotenv import load_dotenv
 import requests
 from zoneinfo import ZoneInfo
 
+
 from database import engine, get_db, Base, SessionLocal
-from models import ChatHistory, Order, Product
+from models import ChatHistory, Order, Product, ProductSearchIndex
+from product_upload_service import (
+    ALL_PRODUCT_UPLOAD_COLUMNS,
+    REQUIRED_PRODUCT_UPLOAD_COLUMNS,
+    upsert_product_upload,
+)
+
+
 from tools import search_products, get_product_details, check_availability
 from sync_service import sync_sap_data
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -642,6 +650,79 @@ def delete_knowledge_file(knowledge_id: str):
     }
 
 
+@app.get("/products/upload-template")
+def get_product_upload_template():
+    return {
+        "required_columns": REQUIRED_PRODUCT_UPLOAD_COLUMNS,
+        "all_supported_columns": ALL_PRODUCT_UPLOAD_COLUMNS,
+        "accepted_file_types": [".xlsx", ".csv"],
+        "notes": [
+            "First sheet will be used for Excel files.",
+            "item_code and item_name are required.",
+            "barcode is optional. If barcode is empty, item_code will be used as product ID.",
+            "concerns and tags should be comma separated.",
+            "Existing products will be updated when barcode/product ID already exists.",
+        ],
+    }
+
+
+@app.post("/products/upload")
+async def upload_products(
+    file: UploadFile = File(...),
+    dry_run: bool = False,
+    db: Session = Depends(get_db),
+):
+    filename = file.filename or ""
+
+    if not (
+        filename.lower().endswith(".xlsx")
+        or filename.lower().endswith(".csv")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .xlsx and .csv files are supported."
+        )
+
+    content = await file.read()
+
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file is empty."
+        )
+
+    try:
+        result = upsert_product_upload(
+            db=db,
+            filename=filename,
+            content=content,
+            dry_run=dry_run,
+        )
+
+        return {
+            "success": True,
+            "message": (
+                "Product upload checked successfully."
+                if dry_run
+                else "Products uploaded successfully."
+            ),
+            "result": result,
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Product upload failed: {str(e)}"
+        )
+    
+    
 
 
 @app.post("/reply", response_model=ChatResponse)

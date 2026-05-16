@@ -1,7 +1,7 @@
 import json
 
 from database import SessionLocal
-from models import Product
+from models import Product, ProductSearchIndex
 import os
 from sqlalchemy import text, or_
 from typing import List, Dict, Optional
@@ -26,6 +26,35 @@ def get_iqd_rate():
         return 1310
 CURRENCY_SYMBOL = "IQD"
 
+def search_product_index(query: str, limit: int = 20) -> List[str]:
+    db = SessionLocal()
+
+    try:
+        query_cleaned = query.strip().lower()
+
+        rows = (
+            db.query(ProductSearchIndex)
+            .filter(
+                or_(
+                    ProductSearchIndex.product_id.ilike(f"%{query_cleaned}%"),
+                    ProductSearchIndex.item_code.ilike(f"%{query_cleaned}%"),
+                    ProductSearchIndex.barcode.ilike(f"%{query_cleaned}%"),
+                    ProductSearchIndex.item_name.ilike(f"%{query_cleaned}%"),
+                    ProductSearchIndex.brand.ilike(f"%{query_cleaned}%"),
+                    ProductSearchIndex.category.ilike(f"%{query_cleaned}%"),
+                    ProductSearchIndex.subcategory.ilike(f"%{query_cleaned}%"),
+                    ProductSearchIndex.search_text.ilike(f"%{query_cleaned}%"),
+                )
+            )
+            .limit(limit)
+            .all()
+        )
+
+        return [row.product_id for row in rows]
+
+    finally:
+        db.close()
+        
 def convert_to_iqd(price_usd: float) -> str:
     if not price_usd or price_usd == 0:
         return "N/A"
