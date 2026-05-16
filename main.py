@@ -11,6 +11,7 @@ import string
 import datetime
 from dotenv import load_dotenv
 import requests
+from zoneinfo import ZoneInfo
 
 from database import engine, get_db, Base, SessionLocal
 from models import ChatHistory, Order, Product
@@ -29,14 +30,36 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 # Initialize Scheduler
-scheduler = AsyncIOScheduler()
+IRAQ_TIMEZONE = ZoneInfo("Asia/Baghdad")
+
+# Initialize Scheduler with Iraq timezone
+scheduler = AsyncIOScheduler(timezone=IRAQ_TIMEZONE)
+
 
 @app.on_event("startup")
 async def start_scheduler():
-    # Schedule SAP sync to run every 24 hours
-    scheduler.add_job(sync_sap_data, 'interval', hours=24)
+    if scheduler.running:
+        return
+
+    # Run SAP sync every day at 6:00 AM and 6:00 PM Iraq time
+    scheduler.add_job(
+        sync_sap_data,
+        trigger="cron",
+        hour="6,18",
+        minute=0,
+        timezone=IRAQ_TIMEZONE,
+        id="sap_data_sync_twice_daily",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     scheduler.start()
-    print("Background Scheduler Started: SAP Sync scheduled every 24 hours.")
+
+    print(
+        "Background Scheduler Started: SAP Sync scheduled daily at "
+        "06:00 and 18:00 Iraq time."
+    )
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -47,6 +70,16 @@ def health_check():
     """Health check endpoint for production monitoring."""
     return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
 
+@app.post("/sap/sync-now")
+async def sync_sap_now():
+    await sync_sap_data()
+
+    return {
+        "success": True,
+        "message": "SAP sync completed.",
+        "synced_at": datetime.datetime.now(IRAQ_TIMEZONE).isoformat(),
+        "timezone": "Asia/Baghdad"
+    }
 MAX_HISTORY = 70
 
 LEADS_FILE = os.path.join(os.path.dirname(__file__), "leads.json")
