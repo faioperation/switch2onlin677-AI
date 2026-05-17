@@ -26,6 +26,9 @@ from product_upload_service import (
 from tools import search_products, get_product_details, check_availability
 from sync_service import sync_sap_data
 from routers.products import router as products_router
+from routers.categories import router as categories_router
+from routers.brands import router as brands_router
+from routers.subcategories import router as subcategories_router
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from pathlib import Path
@@ -33,11 +36,46 @@ from pypdf import PdfReader
 
 load_dotenv()
 
-# Ensure tables exist on startup
-Base.metadata.create_all(bind=engine)
+# ── Safe table creation ──────────────────────────────────────────────────────
+# Base.metadata.create_all() tries to create the knowledge_chunks table with
+# a VECTOR(1536) column, which requires the pgvector C extension.  If pgvector
+# is not installed the whole app crashes at import time.  Create all tables
+# EXCEPT knowledge_chunks in one shot, then attempt knowledge_chunks separately
+# with a broad except so the rest of the app stays alive without RAG.
+
+from sqlalchemy import MetaData
+
+def safe_create_all():
+    all_tables = Base.metadata.tables              # OrderedDict of every registered table
+    core_tables = {k: v for k, v in all_tables.items() if k != "knowledge_chunks"}
+    if core_tables:
+        core_meta = MetaData()
+        for tbl in core_tables.values():
+            tbl.to_metadata(core_meta)
+        core_meta.create_all(bind=engine)
+
+    knowledge_table = all_tables.get("knowledge_chunks")
+    if knowledge_table is not None:
+        try:
+            single_meta = MetaData()
+            knowledge_table.to_metadata(single_meta)
+            single_meta.create_all(bind=engine)
+            print("[RAG] knowledge_chunks table created.")
+        except Exception as exc:
+            print(
+                "[RAG] WARNING: pgvector extension not installed — "
+                f"knowledge_chunks table NOT created. ({exc})\n"
+                "  Install pgvector: pip install pgvector && CREATE EXTENSION vector;\n"
+                "  RAG features will be unavailable but the app will function normally."
+            )
+
+safe_create_all()
 
 app = FastAPI()
 app.include_router(products_router, prefix="", tags=["Products"])
+app.include_router(categories_router, prefix="", tags=["Categories"])
+app.include_router(brands_router, prefix="", tags=["Brands"])
+app.include_router(subcategories_router, prefix="", tags=["Subcategories"])
 
 # Initialize Scheduler
 IRAQ_TIMEZONE = ZoneInfo("Asia/Baghdad")

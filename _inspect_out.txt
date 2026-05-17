@@ -1,0 +1,25 @@
+﻿  TST001                          exists=False
+  TST001NEWBC                     exists=True
+  79531003217                     exists=False
+  3605521159991                   exists=True
+  KIL0TEST01                      exists=False
+  6223001320105                   exists=False
+  100101                          exists=True
+  6223007412059                   exists=False
+
+  Clean numeric-start alphanumeric barcodes in DB:
+    0135floz              item_code=017-0191              name=La Viest Belle L Eclat SP1.ML SAM
+    100029                item_code=059-0029              name=┘â┘ä╪▒ ┘ü┘ä╪▒ ╪¿┘ä┘ê┘å╪»╪▒ ╪º╪▓╪▒┘é 500╪║┘à
+    1000978               item_code=186-0015              name=╪¿╪º┘â┘è╪¬╪º╪¬ ╪│┘è╪¬ ┘à╪º╪¿┘è┘ä
+    100101                item_code=012-0001              name=┘à┘å╪º╪┤┘ü + ╪╡╪»╪º╪▒┘è
+    100102                item_code=012-0002              name=┘ü╪▒╪┤ ╪º╪╡╪¿╪º╪║
+    1008202015322         item_code=470-0002              name=Natural Hands Sanitizer with Vitamin E 100ml
+    1008202015323         item_code=470-0001              name=Natural Hands Sanitizer with Vitamin E 60ml
+    1008202015324         item_code=470-0003              name=Natural Hands Sanitizer with Vitamin E 300ml
+    1008202015326         item_code=470-0004              name=Natural Hands Sanitizer with Vitamin E 500ml
+    108809787115578       item_code=550-0007              name=ROMA LENS MOON
+    108809787115585       item_code=550-0008              name=ROMA LENS SWEET GRAY
+    108809787115592       item_code=550-0002              name=ROMA LENS TIGER
+    108809787115608       item_code=550-0003              name=ROMA LENS SUGAR GREEN
+    108809787115615       item_code=550-0006              name=ROMA LENS SKY
+    108809787115622       item_code=550-0004              name=ROMA LENS ZEBRA
