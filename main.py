@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 
 from database import engine, get_db, Base, SessionLocal
-from models import ChatHistory, Order, Product, ProductSearchIndex
+from models import ChatHistory, Product, ProductSearchIndex
 from product_upload_service import (
     ALL_PRODUCT_UPLOAD_COLUMNS,
     REQUIRED_PRODUCT_UPLOAD_COLUMNS,
@@ -25,6 +25,7 @@ from product_upload_service import (
 
 from tools import search_products, get_product_details, check_availability
 from sync_service import sync_sap_data
+from routers.products import router as products_router
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from pathlib import Path
@@ -36,6 +37,7 @@ load_dotenv()
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+app.include_router(products_router, prefix="", tags=["Products"])
 
 # Initialize Scheduler
 IRAQ_TIMEZONE = ZoneInfo("Asia/Baghdad")
@@ -314,35 +316,6 @@ TOOL_DEFINITIONS = [
             }
         }
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "place_order",
-            "description": "Place a final order for items currently in the cart.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "product_id": {"type": "string", "description": "Product ItemCode"},
-                                "product_name": {"type": "string", "description": "Name of the product"},
-                                "quantity": {"type": "integer", "description": "Quantity to order"}
-                            },
-                            "required": ["product_id", "product_name", "quantity"]
-                        }
-                    },
-                    "customer_name": {"type": "string", "description": "Full name of the customer"},
-                    "customer_email": {"type": "string", "description": "Email address"},
-                    "address": {"type": "string", "description": "Full shipping address"},
-                    "phone": {"type": "string", "description": "Phone number (optional)"}
-                },
-                "required": ["items", "customer_name", "customer_email", "address"]
-            }
-        }
-    }
 ]
 
 
@@ -404,35 +377,6 @@ def save_message(user_id: str, role: str, content: str, db: Session, metadata: d
     db.refresh(history_item)
     return history_item.id
 
-def save_order(user_id: str, order_args: dict, db: Session) -> dict:
-    # Generate a SINGLE unique Order ID for all items in this checkout
-    random_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    order_id = f"ORD-{random_id}"
-    
-    items = order_args.get("items", [])
-    if not items:
-        return {"success": False, "message": "No items found to order."}
-
-    for item in items:
-        new_item = Order(
-            user_id=user_id,
-            order_id=order_id,
-            customer_name=order_args["customer_name"],
-            customer_email=order_args["customer_email"],
-            product_id=item["product_id"],
-            product_name=item["product_name"],
-            quantity=item.get("quantity", 1),
-            address=order_args["address"],
-            phone=order_args.get("phone", "")
-        )
-        db.add(new_item)
-    
-    db.commit()
-    return {
-        "success": True, 
-        "orderID": order_id,
-        "message": f"Your order for {len(items)} items has been placed successfully! Your Order ID is: {order_id}"
-    }
 
 
 # ============================================================
@@ -465,7 +409,6 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     image_url: str | None = None
-    order_link: str | None = None
     products: list | None = None
     user_message_id: int | None = None
     assistant_message_id: int | None = None
@@ -799,7 +742,6 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     user_msg_id = save_message(data.user_id, "user", data.message, db)
 
     image_url = None
-    order_link = None
     products = []
 
 
@@ -831,13 +773,7 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                 tool_name = tool_call.function.name
                 tool_args = json.loads(tool_call.function.arguments)
 
-                if tool_name == "place_order":
-                    # Save order directly using our function
-                    result = save_order(data.user_id, tool_args, db)
-                    tool_result_str = json.dumps(result, ensure_ascii=False)
-                else:
-                    # For search_products and get_product_details
-                    tool_result_str = run_tool(tool_name, tool_args)
+                tool_result_str = run_tool(tool_name, tool_args)
 
                 tool_result = json.loads(tool_result_str)
 
@@ -889,16 +825,14 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     assistant_msg_id = save_message(
         data.user_id, "assistant", reply_text, db,
         metadata={
-            "products":   products   if products   else None,
-            "image_url":  image_url,
-            "order_link": order_link,
+            "products":  products  if products  else None,
+            "image_url": image_url,
         },
     )
 
     return ChatResponse(
         reply=reply_text,
         image_url=image_url,
-        order_link=order_link,
         products=products if products else None,
         user_message_id=user_msg_id,
         assistant_message_id=assistant_msg_id

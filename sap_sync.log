@@ -382,3 +382,54 @@
 2026-05-16 23:24:41,965 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
 2026-05-16 23:24:41,966 - INFO - Added job "sync_sap_data" to job store "default"
 2026-05-16 23:24:41,966 - INFO - Scheduler started
+2026-05-17 04:55:01,977 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 04:55:01,978 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 04:55:01,978 - INFO - Scheduler started
+2026-05-17 04:56:45,682 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 04:56:45,683 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 04:56:45,683 - INFO - Scheduler started
+2026-05-17 04:57:30,624 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 04:57:30,624 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 04:57:30,625 - INFO - Scheduler started
+2026-05-17 04:57:39,399 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 04:57:39,400 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 04:57:39,400 - INFO - Scheduler started
+2026-05-17 04:58:03,342 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 04:58:03,343 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 04:58:03,343 - INFO - Scheduler started
+2026-05-17 05:29:30,184 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
+2026-05-17 05:29:30,230 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
+2026-05-17 05:29:30,235 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
+2026-05-17 05:29:30,238 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
+2026-05-17 05:29:30,245 - INFO - HTTP Request: DELETE http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
+2026-05-17 05:29:30,249 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 404 Not Found"
+2026-05-17 05:29:30,251 - INFO - HTTP Request: POST http://testserver/products/upload-template "HTTP/1.1 405 Method Not Allowed"
+2026-05-17 05:29:46,903 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
+2026-05-17 05:29:46,920 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
+2026-05-17 05:29:46,924 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
+2026-05-17 05:29:46,929 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
+2026-05-17 05:29:46,934 - INFO - HTTP Request: DELETE http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
+2026-05-17 05:29:46,938 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 404 Not Found"
+2026-05-17 05:29:46,940 - INFO - HTTP Request: POST http://testserver/products/upload-template "HTTP/1.1 405 Method Not Allowed"
+2026-05-17 05:29:47,031 - INFO - HTTP Request: GET http://testserver/products?limit=5 "HTTP/1.1 200 OK"
+2026-05-17 05:29:47,044 - INFO - HTTP Request: GET http://testserver/products?q=Creed&limit=2 "HTTP/1.1 200 OK"
+2026-05-17 05:29:47,051 - INFO - HTTP Request: GET http://testserver/products?brand_id=1&page=1&limit=10 "HTTP/1.1 200 OK"
+2026-05-17 05:29:47,058 - INFO - HTTP Request: GET http://testserver/products/filters "HTTP/1.1 200 OK"
+2026-05-17 05:33:12,225 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 05:33:12,225 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 05:33:12,226 - INFO - Scheduler started
+2026-05-17 07:33:30,806 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 07:33:30,807 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 07:33:30,808 - INFO - Scheduler started
+2026-05-17 07:51:00,473 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:53:09,203 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-17 07:53:09,204 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-17 07:53:09,204 - INFO - Scheduler started
+2026-05-17 07:53:31,208 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:53:33,475 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:54:36,811 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:55:04,441 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:55:38,961 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:55:40,475 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:58:02,086 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-17 07:58:13,760 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
