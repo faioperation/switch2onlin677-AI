@@ -106,12 +106,12 @@ def upgrade() -> None:
         sa.Column("skin_type", sa.String(), nullable=True),
         sa.Column(
             "concerns",
-            postgresql.JSONB(astext_fallback=False),
+            postgresql.JSONB(),
             nullable=True,                                   # e.g. ["acne", "dryness"]
         ),
         sa.Column(
             "tags",
-            postgresql.JSONB(astext_fallback=False),
+            postgresql.JSONB(),
             nullable=True,                                   # e.g. ["bestseller", "new"]
         ),
         sa.Column(
