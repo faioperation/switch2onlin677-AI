@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from pydantic import BaseModel
 
 from database import get_db
@@ -31,7 +31,72 @@ def _normalize_name(value: str) -> str:
     return value.strip()
 
 
-# ── Endpoint ────────────────────────────────────────────────────────────────────
+# ── Endpoints ───────────────────────────────────────────────────────────────────
+
+@router.get("/brands")
+def list_brands(
+    search: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    page: int = 1,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """List all brands with search, active filter, and pagination."""
+    query = db.query(Brand)
+    if is_active is not None:
+        query = query.filter(Brand.is_active == (1 if is_active else 0))
+    if search:
+        query = query.filter(
+            or_(
+                Brand.name.ilike(f"%{search}%"),
+                Brand.name_ar.ilike(f"%{search}%")
+            )
+        )
+    
+    total = query.count()
+    offset = (page - 1) * limit
+    items = query.order_by(Brand.name.asc()).offset(offset).limit(limit).all()
+    
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": b.id,
+                "name": b.name,
+                "name_ar": b.name_ar,
+                "is_active": bool(b.is_active),
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+            }
+            for b in items
+        ],
+        "pagination": {
+            "total": total,
+            "page": page,
+            "limit": limit
+        }
+    }
+
+
+@router.get("/brands/{id}")
+def get_brand(id: int, db: Session = Depends(get_db)):
+    """Get a single brand by ID."""
+    brand = db.query(Brand).filter(Brand.id == id).first()
+    if not brand:
+        raise HTTPException(
+            status_code=404,
+            detail={"success": False, "error": "Brand not found"}
+        )
+    return {
+        "success": True,
+        "data": {
+            "id": brand.id,
+            "name": brand.name,
+            "name_ar": brand.name_ar,
+            "is_active": bool(brand.is_active),
+            "created_at": brand.created_at.isoformat() if brand.created_at else None,
+        }
+    }
+
 
 @router.post("/brands", status_code=201)
 def create_brand(payload: BrandCreate, db: Session = Depends(get_db)):

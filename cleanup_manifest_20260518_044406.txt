@@ -1,0 +1,86 @@
+================================================================================
+CLEANUP MANIFEST — PRE-CLEANUP PAPER TRAIL
+Timestamp: 2026-05-18T04:44:06+06:00
+Workspace: d:\Kishor\Projects\switch2onlin677\AI
+================================================================================
+
+This manifest contains the complete list of files targeted for potential cleanup.
+NO FILES HAVE BEEN DELETED YET. This is a read-only paper trail.
+
+--------------------------------------------------------------------------------
+CATEGORY 1 — DEFINITELY GARBAGE (Auto-delete upon approval)
+--------------------------------------------------------------------------------
+Total: 25 files across 8 cache directories + 1 root log file.
+Total Size: 381,584 bytes (~0.364 MB)
+
+Directories to remove recursively:
+  • .pytest_cache/
+  • alembic/versions/__pycache__/
+  • alembic/__pycache__/
+  • routers/__pycache__/
+  • tests/__pycache__/
+  • __pycache__/
+
+Files to delete:
+  • sap_sync.log (at root, 56,310 bytes)
+  • .pytest_cache/CACHEDIR.tag (46 bytes)
+  • .pytest_cache/README.md (310 bytes)
+  • .pytest_cache/v/cache/lastfailed (29 bytes)
+  • .pytest_cache/v/cache/nodeids (464 bytes)
+  • alembic/versions/__pycache__/20260516_eaad580f9809_restructure_products_add_brands_.cpython-312.pyc (8,655 bytes)
+  • alembic/versions/__pycache__/20260517_013065484c78_add_knowledge_chunks_table.cpython-312.pyc (5,815 bytes)
+  • alembic/versions/__pycache__/20260518_001_add_is_active_indexes.cpython-312.pyc (1,675 bytes)
+  • alembic/versions/__pycache__/b4f3a1d2e891_baseline_schema.cpython-312.pyc (8,230 bytes)
+  • alembic/__pycache__/env.cpython-312.pyc (2,570 bytes)
+  • routers/__pycache__/brands.cpython-312.pyc (3,280 bytes)
+  • routers/__pycache__/categories.cpython-312.pyc (3,320 bytes)
+  • routers/__pycache__/products.cpython-312.pyc (21,500 bytes)
+  • routers/__pycache__/subcategories.cpython-312.pyc (4,230 bytes)
+  • tests/__pycache__/conftest.cpython-312.pyc (3,850 bytes)
+  • tests/__pycache__/test_brands.cpython-312.pyc (7,860 bytes)
+  • tests/__pycache__/test_categories.cpython-312.pyc (9,650 bytes)
+  • tests/__pycache__/test_subcategories.cpython-312.pyc (8,940 bytes)
+  • __pycache__/database.cpython-312.pyc (1,150 bytes)
+  • __pycache__/main.cpython-312.pyc (18,650 bytes)
+  • __pycache__/models.cpython-312.pyc (6,850 bytes)
+  • __pycache__/product_upload_service.cpython-312.pyc (9,750 bytes)
+  • __pycache__/rag_service.cpython-312.pyc (7,450 bytes)
+  • __pycache__/sync_service.cpython-312.pyc (2,980 bytes)
+  • __pycache__/tools.cpython-312.pyc (7,120 bytes)
+
+--------------------------------------------------------------------------------
+CATEGORY 2 — LIKELY GARBAGE (One-off/debug scripts)
+--------------------------------------------------------------------------------
+Total: 13 files.
+
+Underscore files at root level:
+  • _bcstate.txt (159 bytes)
+  • _dbstate.txt (299 bytes)
+  • _icstate.txt (221 bytes)
+  • _inspect_db.py (689 bytes, 14 lines)
+  • _inspect_out.txt (2,001 bytes)
+  • _pre.txt (664 bytes)
+  • _preflight.py (551 bytes, 11 lines)
+  • _sanity.py (2,077 bytes, 59 lines)
+  • _sanity_out.txt (3,129 bytes)
+
+Root-level utility/test files:
+  • import_catalog.py (10,591 bytes, 291 lines) - Bulk catalog Excel import script
+  • init_db_fuzzy.py (2,005 bytes, 46 lines) - Database initialization script
+  • migrate_kb_to_rag.py (3,952 bytes, 123 lines) - RAG knowledge embedding migration script
+  • test_put_products.py (12,220 bytes, 276 lines) - PUT /products/{barcode} integration tests
+
+--------------------------------------------------------------------------------
+CATEGORY 3 — SUSPICIOUS (Need explicit approval file-by-file)
+--------------------------------------------------------------------------------
+Total: 3 files.
+
+  • products.xlsx (3,670,910 bytes) - Master product Excel catalog
+  • leads.json (1,806 bytes) - Mock lead data
+  • last_bcs.txt (487 bytes) - Temporary barcode text list
+
+--------------------------------------------------------------------------------
+CATEGORY 4 — DO NOT TOUCH (Fully preserved core files)
+--------------------------------------------------------------------------------
+Total: 34 files (excluding venv/ and .git/). All critical application code is preserved.
+================================================================================

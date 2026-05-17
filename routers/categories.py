@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from pydantic import BaseModel
 
 from database import get_db
@@ -31,7 +31,72 @@ def _normalize_name(value: str) -> str:
     return value.strip()
 
 
-# ── Endpoint ────────────────────────────────────────────────────────────────────
+# ── Endpoints ───────────────────────────────────────────────────────────────────
+
+@router.get("/categories")
+def list_categories(
+    search: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    page: int = 1,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """List all categories with search, active filter, and pagination."""
+    query = db.query(Category)
+    if is_active is not None:
+        query = query.filter(Category.is_active == (1 if is_active else 0))
+    if search:
+        query = query.filter(
+            or_(
+                Category.name.ilike(f"%{search}%"),
+                Category.name_ar.ilike(f"%{search}%")
+            )
+        )
+    
+    total = query.count()
+    offset = (page - 1) * limit
+    items = query.order_by(Category.name.asc()).offset(offset).limit(limit).all()
+    
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "name_ar": c.name_ar,
+                "is_active": bool(c.is_active),
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+            for c in items
+        ],
+        "pagination": {
+            "total": total,
+            "page": page,
+            "limit": limit
+        }
+    }
+
+
+@router.get("/categories/{id}")
+def get_category(id: int, db: Session = Depends(get_db)):
+    """Get a single category by ID."""
+    category = db.query(Category).filter(Category.id == id).first()
+    if not category:
+        raise HTTPException(
+            status_code=404,
+            detail={"success": False, "error": "Category not found"}
+        )
+    return {
+        "success": True,
+        "data": {
+            "id": category.id,
+            "name": category.name,
+            "name_ar": category.name_ar,
+            "is_active": bool(category.is_active),
+            "created_at": category.created_at.isoformat() if category.created_at else None,
+        }
+    }
+
 
 @router.post("/categories", status_code=201)
 def create_category(payload: CategoryCreate, db: Session = Depends(get_db)):
