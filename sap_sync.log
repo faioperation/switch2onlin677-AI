@@ -557,3 +557,7 @@
 2026-05-18 04:29:50,049 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
 2026-05-18 04:29:50,053 - INFO - HTTP Request: GET http://testserver/products/KILOUSECASE03 "HTTP/1.1 404 Not Found"
 2026-05-18 04:29:50,061 - INFO - HTTP Request: GET http://testserver/products/SANITY1779056989 "HTTP/1.1 200 OK"
+2026-05-19 01:20:44,007 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-19 01:20:44,008 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-19 01:20:44,008 - INFO - Scheduler started
+2026-05-19 01:27:26,777 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 400 Bad Request"
