@@ -22,14 +22,14 @@ from models import (
 # ── Column definitions ──────────────────────────────────────────────────────────
 
 REQUIRED_PRODUCT_UPLOAD_COLUMNS = [
+    "barcode",
+]
+
+OPTIONAL_PRODUCT_UPLOAD_COLUMNS = [
     "item_code",
     "item_name",
     "brand_name",
     "category_name",
-]
-
-OPTIONAL_PRODUCT_UPLOAD_COLUMNS = [
-    "barcode",
     "subcategory_name",
     "sap_product_id",
     "description",
@@ -65,7 +65,7 @@ def clean_value(value):
     return text
 
 
-def clean_number(value, default=0):
+def clean_number(value, default=None):
     value = clean_value(value)
     if value is None:
         return default
@@ -75,7 +75,7 @@ def clean_number(value, default=0):
         return default
 
 
-def clean_integer(value, default=0):
+def clean_integer(value, default=None):
     value = clean_value(value)
     if value is None:
         return default
@@ -132,10 +132,10 @@ def normalize_barcode(value):
 
 
 def parse_best_selling(value):
-    """Convert truthy/falsy strings to integer 0/1."""
+    """Convert truthy/falsy strings to integer 0/1, or None if absent."""
     raw = clean_value(value)
     if not raw:
-        return 0
+        return None
     return 1 if str(raw).strip() in {"1", "true", "True", "YES", "yes", "Y", "y"} else 0
 
 
@@ -298,11 +298,8 @@ def upsert_product_upload(
             tags = parse_tags(*tag_values)
 
             # ── Pricing ──
-            price = clean_number(row.get(column_map.get("price")), default=0)
-            available_qty = clean_integer(
-                row.get(column_map.get("available_qty")),
-                default=0,
-            )
+            price = clean_number(row.get(column_map.get("price")))
+            available_qty = clean_integer(row.get(column_map.get("available_qty")))
 
             # ── Sales intelligence ──
             is_best_selling = parse_best_selling(
@@ -311,25 +308,14 @@ def upsert_product_upload(
             best_selling_scope = clean_value(
                 row.get(column_map.get("best_selling_scope"))
             )
-            sales_rank = clean_integer(
-                row.get(column_map.get("sales_rank")),
-                default=0,
-            )
+            sales_rank = clean_integer(row.get(column_map.get("sales_rank")))
 
             # ── Required-field guard ──
-            if not item_code:
+            if not barcode:
                 skipped_count += 1
                 errors.append({
                     "row": row_number,
-                    "error": "item_code is required.",
-                })
-                continue
-
-            if not item_name:
-                skipped_count += 1
-                errors.append({
-                    "row": row_number,
-                    "error": "item_name is required.",
+                    "error": "barcode is required — row skipped.",
                 })
                 continue
 
@@ -359,8 +345,7 @@ def upsert_product_upload(
             )
 
             # ── Resolve physical barcode key ──
-            # barcode is primary key; fall back to item_code when barcode absent
-            product_barcode = barcode or item_code
+            product_barcode = barcode
 
             existing_product = (
                 db.query(Product)
@@ -382,8 +367,8 @@ def upsert_product_upload(
             product.brand_id = brand_id
             product.category_id = category_id
             product.subcategory_id = subcategory_id
-            product.sap_product_id = sap_product_id or None
-            product.description = description or item_name
+            product.sap_product_id = sap_product_id
+            product.description = description
             product.image_url = image_url
             product.skin_type = skin_type
             product.concerns = concerns if concerns else None
@@ -392,7 +377,7 @@ def upsert_product_upload(
             product.available_qty = available_qty
             product.is_best_selling = is_best_selling
             product.best_selling_scope = best_selling_scope
-            product.sales_rank = sales_rank if sales_rank else None
+            product.sales_rank = sales_rank
 
             # ── Sync productsearchindex ──
             search_text = build_search_text(

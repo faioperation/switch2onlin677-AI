@@ -66,12 +66,12 @@ class Product(Base):
     # ── Identity ──────────────────────────────────────────────────────────────
     barcode        = Column(String(100), primary_key=True)
                      # SAP master linking key — NEVER change this PK type
-    item_code      = Column(String(100), unique=True, index=True, nullable=False)
+    item_code      = Column(String(100), unique=True, index=True, nullable=True)
     sap_product_id = Column(String(100), nullable=True, index=True)
                      # SAP internal product ID (if different from barcode)
 
     # ── Display ───────────────────────────────────────────────────────────────
-    item_name      = Column(Text, nullable=False, index=True)
+    item_name      = Column(Text, nullable=True, index=True)
     description    = Column(Text, nullable=True)
     image_url      = Column(String(500), nullable=True)
 
