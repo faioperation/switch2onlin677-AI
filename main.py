@@ -819,6 +819,63 @@ async def upload_products(
     
 
 
+class ConvertImageResponse(BaseModel):
+    data_url: str
+    original_mime: str
+
+
+@app.post("/convert-image", response_model=ConvertImageResponse)
+async def convert_image(file: UploadFile = File(...)):
+    """
+    Accept any image file (including HEIC/HEIF) and return a
+    browser-displayable JPEG data URL.
+    """
+    content = await file.read()
+    mime = (file.content_type or "").lower()
+
+    # If it's already a browser-safe format, just return it as-is
+    if mime in SUPPORTED_IMAGE_MIMES:
+        b64 = base64.b64encode(content).decode("utf-8")
+        return ConvertImageResponse(
+            data_url=f"data:{mime};base64,{b64}",
+            original_mime=mime,
+        )
+
+    # Treat as potential HEIC/unknown → convert via Pillow
+    is_heic = mime in HEIC_IMAGE_MIMES or looks_like_heif(content)
+
+    if not is_heic:
+        # Try to open with Pillow anyway (covers BMP, TIFF, etc.)
+        pass
+
+    try:
+        image = Image.open(BytesIO(content))
+        image = ImageOps.exif_transpose(image)
+
+        if image.mode in ("RGBA", "LA", "P"):
+            image = image.convert("RGBA")
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[-1])
+            image = background
+        else:
+            image = image.convert("RGB")
+
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=90)
+        jpeg_b64 = base64.b64encode(output.getvalue()).decode("utf-8")
+
+        return ConvertImageResponse(
+            data_url=f"data:image/jpeg;base64,{jpeg_b64}",
+            original_mime=mime,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not convert image: {str(e)}. Please upload JPG, PNG, WEBP, or HEIC.",
+        )
+
+
 @app.post("/reply", response_model=ChatResponse)
 def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     history = get_history(data.user_id, db)
@@ -890,7 +947,28 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     messages_for_ai.append({"role": "user", "content": data.message})
 
     # Save the user message now (so it appears in history even if something fails)
-    user_msg_id = save_message(data.user_id, "user", data.message, db)
+    # If an image was uploaded, save a compressed thumbnail alongside the user message
+    user_image_for_history = None
+    if data.image_url:
+        try:
+            normalized = normalize_image_for_openai(data.image_url)
+            # Build a small thumbnail (max 300px) to store in DB without bloat
+            match = re.match(r"data:(.*?);base64,(.*)$", normalized, re.DOTALL)
+            if match:
+                img_bytes = base64.b64decode(re.sub(r"\s+", "", match.group(2)))
+                thumb = Image.open(BytesIO(img_bytes))
+                thumb.thumbnail((300, 300), Image.LANCZOS)
+                thumb_buf = BytesIO()
+                thumb.convert("RGB").save(thumb_buf, format="JPEG", quality=75)
+                thumb_b64 = base64.b64encode(thumb_buf.getvalue()).decode("utf-8")
+                user_image_for_history = f"data:image/jpeg;base64,{thumb_b64}"
+        except Exception:
+            pass  # non-critical — image just won't show in history
+
+    user_msg_id = save_message(
+        data.user_id, "user", data.message, db,
+        metadata={"image_url": user_image_for_history} if user_image_for_history else None,
+    )
 
     image_url = None
     products = []

@@ -148,6 +148,8 @@ function addMessage(role, content, products, messageId, imageUrl) {
       const img = document.createElement('img');
       img.src = imageUrl;
       img.className = 'msg-image-preview';
+      img.style.display = 'block';
+      img.onerror = function() { this.style.display = 'none'; };
       bubble.appendChild(img);
     }
 
@@ -442,19 +444,81 @@ function closeSidebar() {
 }
 
 // ===== IMAGE HANDLING =====
-function handleFileSelect(e) {
+
+const HEIC_EXTENSIONS = ['.heic', '.heif'];
+const HEIC_MIMES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence', 'image/x-heic', 'image/x-heif'];
+
+function isHeicFile(file) {
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  const mime = (file.type || '').toLowerCase();
+  return HEIC_EXTENSIONS.includes(ext) || HEIC_MIMES.includes(mime);
+}
+
+function showImagePreview(dataUrl) {
+  pendingImageBase64 = dataUrl;
+  const preview = document.getElementById('imagePreview');
+  const container = document.getElementById('imagePreviewContainer');
+  if (preview && container) {
+    preview.src = dataUrl;
+    container.classList.remove('hidden');
+  }
+}
+
+async function handleFileSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
 
+  if (isHeicFile(file)) {
+    // Show a small loading indicator on the preview area
+    const container = document.getElementById('imagePreviewContainer');
+    const preview = document.getElementById('imagePreview');
+    if (container && preview) {
+      preview.src = '';
+      container.classList.remove('hidden');
+      preview.alt = 'Converting HEIC…';
+      preview.style.opacity = '0.4';
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/convert-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'HEIC conversion failed');
+      }
+
+      const data = await res.json();
+      if (preview) {
+        preview.style.opacity = '1';
+        preview.alt = 'Preview';
+      }
+      showImagePreview(data.data_url);
+    } catch (err) {
+      console.error('HEIC conversion error:', err);
+      if (container) container.classList.add('hidden');
+      pendingImageBase64 = null;
+      Swal.fire({
+        icon: 'error',
+        title: 'Image Error',
+        text: err.message || 'Could not process HEIC image. Please try JPG or PNG.',
+        confirmButtonColor: '#0ea5e9',
+        background: document.body.classList.contains('dark') ? '#0f172a' : '#fff',
+        color: document.body.classList.contains('dark') ? '#f1f5f9' : '#0f172a',
+      });
+    }
+    return;
+  }
+
+  // Non-HEIC: fast local path
   const reader = new FileReader();
   reader.onload = function (event) {
-    pendingImageBase64 = event.target.result;
-    const preview = document.getElementById('imagePreview');
-    const container = document.getElementById('imagePreviewContainer');
-    if (preview && container) {
-      preview.src = event.target.result;
-      container.classList.remove('hidden');
-    }
+    showImagePreview(event.target.result);
   };
   reader.readAsDataURL(file);
 }
@@ -463,8 +527,10 @@ function removeImage() {
   pendingImageBase64 = null;
   const fileInput = document.getElementById('fileInput');
   const container = document.getElementById('imagePreviewContainer');
+  const preview = document.getElementById('imagePreview');
   if (fileInput) fileInput.value = '';
   if (container) container.classList.add('hidden');
+  if (preview) preview.style.opacity = '1';
 }
 
 // ===== EVENT LISTENERS =====
