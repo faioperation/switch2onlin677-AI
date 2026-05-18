@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Numeric, func, Index
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import UserDefinedType
 from database import Base
 
 
@@ -140,7 +141,15 @@ class ProductSearchIndex(Base):
 # Also add to postgresql.conf:
 #   shared_preload_libraries = 'pgvector'
 
-from pgvector.sqlalchemy import Vector  # noqa: E402
+try:
+    from pgvector.sqlalchemy import Vector  # noqa: E402
+except ModuleNotFoundError:
+    class Vector(UserDefinedType):
+        def __init__(self, dimensions):
+            self.dimensions = dimensions
+
+        def get_col_spec(self, **kwargs):
+            return f"VECTOR({self.dimensions})"
 
 
 class KnowledgeChunk(Base):
