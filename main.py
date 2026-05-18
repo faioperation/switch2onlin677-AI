@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 
 from database import engine, get_db, Base, SessionLocal
-from models import ChatHistory, Order, Product, ProductSearchIndex
+from models import ChatHistory, Product, ProductSearchIndex
 from product_upload_service import (
     ALL_PRODUCT_UPLOAD_COLUMNS,
     REQUIRED_PRODUCT_UPLOAD_COLUMNS,
@@ -25,6 +25,10 @@ from product_upload_service import (
 
 from tools import search_products, get_product_details, check_availability
 from sync_service import sync_sap_data
+from routers.products import router as products_router
+from routers.categories import router as categories_router
+from routers.brands import router as brands_router
+from routers.subcategories import router as subcategories_router
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from pathlib import Path
@@ -40,10 +44,46 @@ register_heif_opener()
 
 load_dotenv()
 
-# Ensure tables exist on startup
-Base.metadata.create_all(bind=engine)
+# ── Safe table creation ──────────────────────────────────────────────────────
+# Base.metadata.create_all() tries to create the knowledge_chunks table with
+# a VECTOR(1536) column, which requires the pgvector C extension.  If pgvector
+# is not installed the whole app crashes at import time.  Create all tables
+# EXCEPT knowledge_chunks in one shot, then attempt knowledge_chunks separately
+# with a broad except so the rest of the app stays alive without RAG.
+
+from sqlalchemy import MetaData
+
+def safe_create_all():
+    all_tables = Base.metadata.tables              # OrderedDict of every registered table
+    core_tables = {k: v for k, v in all_tables.items() if k != "knowledge_chunks"}
+    if core_tables:
+        core_meta = MetaData()
+        for tbl in core_tables.values():
+            tbl.to_metadata(core_meta)
+        core_meta.create_all(bind=engine)
+
+    knowledge_table = all_tables.get("knowledge_chunks")
+    if knowledge_table is not None:
+        try:
+            single_meta = MetaData()
+            knowledge_table.to_metadata(single_meta)
+            single_meta.create_all(bind=engine)
+            print("[RAG] knowledge_chunks table created.")
+        except Exception as exc:
+            print(
+                "[RAG] WARNING: pgvector extension not installed — "
+                f"knowledge_chunks table NOT created. ({exc})\n"
+                "  Install pgvector: pip install pgvector && CREATE EXTENSION vector;\n"
+                "  RAG features will be unavailable but the app will function normally."
+            )
+
+safe_create_all()
 
 app = FastAPI()
+app.include_router(products_router, prefix="", tags=["Products"])
+app.include_router(categories_router, prefix="", tags=["Categories"])
+app.include_router(brands_router, prefix="", tags=["Brands"])
+app.include_router(subcategories_router, prefix="", tags=["Subcategories"])
 
 # Initialize Scheduler
 IRAQ_TIMEZONE = ZoneInfo("Asia/Baghdad")
@@ -427,35 +467,6 @@ TOOL_DEFINITIONS = [
             }
         }
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "place_order",
-            "description": "Place a final order for items currently in the cart.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "product_id": {"type": "string", "description": "Product ItemCode"},
-                                "product_name": {"type": "string", "description": "Name of the product"},
-                                "quantity": {"type": "integer", "description": "Quantity to order"}
-                            },
-                            "required": ["product_id", "product_name", "quantity"]
-                        }
-                    },
-                    "customer_name": {"type": "string", "description": "Full name of the customer"},
-                    "customer_email": {"type": "string", "description": "Email address"},
-                    "address": {"type": "string", "description": "Full shipping address"},
-                    "phone": {"type": "string", "description": "Phone number (optional)"}
-                },
-                "required": ["items", "customer_name", "customer_email", "address"]
-            }
-        }
-    }
 ]
 
 
@@ -517,35 +528,6 @@ def save_message(user_id: str, role: str, content: str, db: Session, metadata: d
     db.refresh(history_item)
     return history_item.id
 
-def save_order(user_id: str, order_args: dict, db: Session) -> dict:
-    # Generate a SINGLE unique Order ID for all items in this checkout
-    random_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    order_id = f"ORD-{random_id}"
-    
-    items = order_args.get("items", [])
-    if not items:
-        return {"success": False, "message": "No items found to order."}
-
-    for item in items:
-        new_item = Order(
-            user_id=user_id,
-            order_id=order_id,
-            customer_name=order_args["customer_name"],
-            customer_email=order_args["customer_email"],
-            product_id=item["product_id"],
-            product_name=item["product_name"],
-            quantity=item.get("quantity", 1),
-            address=order_args["address"],
-            phone=order_args.get("phone", "")
-        )
-        db.add(new_item)
-    
-    db.commit()
-    return {
-        "success": True, 
-        "orderID": order_id,
-        "message": f"Your order for {len(items)} items has been placed successfully! Your Order ID is: {order_id}"
-    }
 
 
 # ============================================================
@@ -578,7 +560,6 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     image_url: str | None = None
-    order_link: str | None = None
     products: list | None = None
     user_message_id: int | None = None
     assistant_message_id: int | None = None
@@ -912,7 +893,6 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     user_msg_id = save_message(data.user_id, "user", data.message, db)
 
     image_url = None
-    order_link = None
     products = []
 
 
@@ -946,13 +926,7 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                 tool_name = tool_call.function.name
                 tool_args = json.loads(tool_call.function.arguments)
 
-                if tool_name == "place_order":
-                    # Save order directly using our function
-                    result = save_order(data.user_id, tool_args, db)
-                    tool_result_str = json.dumps(result, ensure_ascii=False)
-                else:
-                    # For search_products and get_product_details
-                    tool_result_str = run_tool(tool_name, tool_args)
+                tool_result_str = run_tool(tool_name, tool_args)
 
                 tool_result = json.loads(tool_result_str)
 
@@ -1004,16 +978,14 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     assistant_msg_id = save_message(
         data.user_id, "assistant", reply_text, db,
         metadata={
-            "products":   products   if products   else None,
-            "image_url":  image_url,
-            "order_link": order_link,
+            "products":  products  if products  else None,
+            "image_url": image_url,
         },
     )
 
     return ChatResponse(
         reply=reply_text,
         image_url=image_url,
-        order_link=order_link,
         products=products if products else None,
         user_message_id=user_msg_id,
         assistant_message_id=assistant_msg_id

@@ -1,0 +1,11 @@
+﻿.\venv\Scripts\python.exe :   File "D:\Kishor\Projects\switch2onlin677\AI\_preflight.py", line 13
+At line:1 char:143
++ ... simple_test_db"; .\venv\Scripts\python.exe _preflight.py 2>&1 | Out-F ...
++                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  File "D:\Kish...ht.py", line 13:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    print(f"  {bc:25s}  found={found}  item_code={r[1]!r if found else 'N/A':30s}  name={r[2][:40] if found else 
+'N/A'}")
+                                                         ^^
+SyntaxError: f-string: expecting ':' or '}'

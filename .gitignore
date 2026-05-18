@@ -1,12 +1,24 @@
+# =========================
+
 # Python
-__pycache__/
+
+# =========================
+
+**pycache**/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# Virtual Environment
+
 env/
 venv/
 ENV/
+.venv/
+
+# Build / Distribution
+
 build/
 develop-eggs/
 dist/
@@ -19,34 +31,252 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
-.installed.cfg
+.installed.cfg/
 *.egg
+pip-wheel-metadata/
+
+# Testing / Coverage
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Type Checking / Lint
+
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.dmypy.json
+dmypy.json
+
+# =========================
 
 # Database
+
+# =========================
+
 *.db
 *.sqlite3
+*.sqlite
+*.sql
 
-# Environment
+# =========================
+
+# Environment Files
+
+# =========================
+
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-# IDE
+# =========================
+
+# Logs
+
+# =========================
+
+*.log
+logs/
+log/
+sap_sync.log
+
+# =========================
+
+# Runtime / PID
+
+# =========================
+
+*.pid
+*.pid.lock
+
+# =========================
+
+# IDE / Editor
+
+# =========================
+
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# =========================
+
+# OS Files
+
+# =========================
+
 .DS_Store
 Thumbs.db
 
-# Vercel
+# =========================
+
+# Node / Frontend
+
+# =========================
+
+node_modules/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+coverage/
+dist/
+build/
+
+# Vite
+
+vite.svg
+
+# =========================
+
+# Vercel / Deployment
+
+# =========================
+
 .vercel/
 vercel.json
 
-# Custom Exclusions
+# =========================
+
+# Uploads / AI Assets
+
+# =========================
+
+uploads/
+temp/
+tmp/
+cache/
+
+# Knowledge Base Generated Files
+
+knowledge_base/*.pdf
+knowledge_base/*.txt
+knowledge_base/*.json
+
+# Keep directory structure
+
+!knowledge_base/.gitkeep
+
+# =========================
+
+# Generated Data Files
+
+# =========================
+
+rate.json
+leads.json
+
+# =========================
+
+# Jupyter
+
+# =========================
+
+.ipynb_checkpoints/
+
+# =========================
+
+# Secrets / Keys
+
+# =========================
+
+*.pem
+*.key
+*.crt
+*.p12
+
+# =========================
+
+# Docker
+
+# =========================
+
+docker-compose.override.yml
+
+# =========================
+
+# Misc
+
+# =========================
+
 scratch/
-*.log
-sap_sync.log
+temp/
+tmp/
+*.bak
+*.backup
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # Python
+# __pycache__/
+# *.py[cod]
+# *$py.class
+# *.so
+# .Python
+# env/
+# venv/
+# ENV/
+# build/
+# develop-eggs/
+# dist/
+# downloads/
+# eggs/
+# .eggs/
+# lib/
+# lib64/
+# parts/
+# sdist/
+# var/
+# wheels/
+# *.egg-info/
+# .installed.cfg
+# *.egg
+
+# # Database
+# *.db
+# *.sqlite3
+
+# # Environment
+# .env
+# .env.local
+# .env.*.local
+
+# # IDE
+# .vscode/
+# .idea/
+# *.swp
+# *.swo
+
+# # OS
+# .DS_Store
+# Thumbs.db
+
+# # Vercel
+# .vercel/
+# vercel.json
+
+# # Custom Exclusions
+# scratch/
+# *.log
+# sap_sync.log

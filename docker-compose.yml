@@ -1,0 +1,17 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ai_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: simple_test_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

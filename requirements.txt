@@ -1,7 +1,10 @@
 fastapi
 uvicorn
 openai>=1.0.0
+pgvector
+tiktoken
 sqlalchemy
+alembic
 python-dotenv
 httpx
 psycopg2-binary

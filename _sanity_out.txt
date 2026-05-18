@@ -1,0 +1,69 @@
+﻿.\venv\Scripts\python.exe : 2026-05-18 04:29:50,015 - INFO - HTTP Request: GET 
+http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
+At line:1 char:143
++ ... 32/simple_test_db"; .\venv\Scripts\python.exe _sanity.py 2>&1 | Out-F ...
++                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (2026-05-18 04:2...TTP/1.1 200 OK":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+2026-05-18 04:29:50,022 - INFO - HTTP Request: GET http://testserver/products/SANITY1779056989 "HTTP/1.1 404 Not Found"
+2026-05-18 04:29:50,030 - WARNING - PK_CHANGE: barcode changed 'KILOUSECASE03' -> 'SANITY1779056989'
+2026-05-18 04:29:50,049 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
+2026-05-18 04:29:50,053 - INFO - HTTP Request: GET http://testserver/products/KILOUSECASE03 "HTTP/1.1 404 Not Found"
+2026-05-18 04:29:50,061 - INFO - HTTP Request: GET http://testserver/products/SANITY1779056989 "HTTP/1.1 200 OK"
+DhifafBot Running................You Can Chat with DhifafBot.............
+[RAG] WARNING: pgvector extension not installed ΓÇö knowledge_chunks table NOT created. ((psycopg2.errors.UndefinedObject) type "vector" does not exist
+LINE 9:  embedding VECTOR(1536), 
+                   ^
+
+[SQL: 
+CREATE TABLE knowledge_chunks (
+	id SERIAL NOT NULL, 
+	knowledge_id VARCHAR(100) NOT NULL, 
+	original_filename VARCHAR(500) NOT NULL, 
+	chunk_index INTEGER NOT NULL, 
+	chunk_text TEXT NOT NULL, 
+	token_count INTEGER, 
+	embedding VECTOR(1536), 
+	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(), 
+	PRIMARY KEY (id)
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/f405))
+  Install pgvector: pip install pgvector && CREATE EXTENSION vector;
+  RAG features will be unavailable but the app will function normally.
+
+A: GET BC_SRC GET /products/KILOUSECASE03
+  status: 200
+  item_name : T5 BothTogether
+  item_code : 012-0001
+  barcode   : KILOUSECASE03
+
+B: GET BC_NEW GET /products/SANITY1779056989
+  status: 404
+  body: {"detail": {"success": false, "error": "Product not found", "barcode": "SANITY1779056989"}}
+
+C: PUT rename KILOUSECASE03 -> SANITY1779056989
+  status: 200
+  body  : {"success": true, "message": "Product updated successfully", "data": {"barcode": "SANITY1779056989", "item_code": "012-0001", "item_name": "SANITY-RENAME", "description": "┘à┘å╪º╪┤┘ü + ╪╡╪»╪º╪▒┘è", "image_url": "Not Found", "skin_type": null, "concerns": ["acn
+
+D: GET BC_SRC after rename GET /products/KILOUSECASE03
+  status: 404
+  body: {"detail": {"success": false, "error": "Product not found", "barcode": "KILOUSECASE03"}}
+
+E: GET BC_NEW after rename GET /products/SANITY1779056989
+  status: 200
+  item_name : SANITY-RENAME
+  item_code : 012-0001
+  barcode   : SANITY1779056989
+
+F: productsearchindex[KILOUSECASE03]
+  exists: False
+
+F: productsearchindex[SANITY1779056989]
+  exists: True
+  keys  : id='SANITY1779056989'  code='012-0001'  name='SANITY-RENAME'
+
+F: productsearchindex[100101]
+  exists: False

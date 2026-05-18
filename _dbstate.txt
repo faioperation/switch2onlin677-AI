@@ -1,0 +1,4 @@
+﻿Barcode state:
+  'TST001NEWBC'                   item_code='TST-CODE-01'              name=T5-BothTogether
+  '3605521159991'                 item_code='RESTORED_3605521159991'   name=Restored Product
+  'KILOUSECASE03'                 item_code='012-0001'                 name=T5 BothTogether

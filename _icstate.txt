@@ -1,0 +1,4 @@
+﻿Products with item_code=012-0002: 1
+  barcode='100102' item_name=┘ü╪▒╪┤ ╪º╪╡╪¿╪º╪║
+Products with item_code RESTORED_3605521159991: 1
+  barcode='3605521159991' item_name=Restored Product
