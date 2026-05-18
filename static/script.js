@@ -281,7 +281,16 @@ async function sendMessage() {
       }),
     });
 
-    if (!res.ok) throw new Error('Reply failed');
+    if (!res.ok) {
+      let errorMessage = 'Sorry, something went wrong. Please try again.';
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.detail || errorMessage;
+      } catch (_) {
+        errorMessage = `Request failed (${res.status}). Please try again.`;
+      }
+      throw new Error(errorMessage);
+    }
     const data = await res.json();
 
     const tempUserMsg = document.querySelector(`[data-message-id="temp"]`);
@@ -294,7 +303,7 @@ async function sendMessage() {
     loadConversations();
   } catch (err) {
     hideTyping();
-    addMessage('bot', 'Sorry, something went wrong. Please try again.', [], null);
+    addMessage('bot', err.message || 'Sorry, something went wrong. Please try again.', [], null);
   }
 }
 
