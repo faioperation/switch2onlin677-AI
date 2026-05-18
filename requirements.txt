@@ -14,3 +14,5 @@ openpyxl
 apscheduler
 requests
 pypdf
+Pillow
+pillow-heif

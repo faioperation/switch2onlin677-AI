@@ -379,181 +379,22 @@
 2026-05-16 12:47:54,455 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
 2026-05-16 12:47:54,456 - INFO - Added job "sync_sap_data" to job store "default"
 2026-05-16 12:47:54,457 - INFO - Scheduler started
-2026-05-16 23:24:41,965 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-16 23:24:41,966 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-16 23:24:41,966 - INFO - Scheduler started
-2026-05-17 04:55:01,977 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 04:55:01,978 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 04:55:01,978 - INFO - Scheduler started
-2026-05-17 04:56:45,682 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 04:56:45,683 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 04:56:45,683 - INFO - Scheduler started
-2026-05-17 04:57:30,624 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 04:57:30,624 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 04:57:30,625 - INFO - Scheduler started
-2026-05-17 04:57:39,399 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 04:57:39,400 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 04:57:39,400 - INFO - Scheduler started
-2026-05-17 04:58:03,342 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 04:58:03,343 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 04:58:03,343 - INFO - Scheduler started
-2026-05-17 05:29:30,184 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
-2026-05-17 05:29:30,230 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
-2026-05-17 05:29:30,235 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-17 05:29:30,238 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-17 05:29:30,245 - INFO - HTTP Request: DELETE http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
-2026-05-17 05:29:30,249 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 404 Not Found"
-2026-05-17 05:29:30,251 - INFO - HTTP Request: POST http://testserver/products/upload-template "HTTP/1.1 405 Method Not Allowed"
-2026-05-17 05:29:46,903 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
-2026-05-17 05:29:46,920 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
-2026-05-17 05:29:46,924 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-17 05:29:46,929 - INFO - HTTP Request: PUT http://testserver/products/3605521159991 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-17 05:29:46,934 - INFO - HTTP Request: DELETE http://testserver/products/3605521159991 "HTTP/1.1 200 OK"
-2026-05-17 05:29:46,938 - INFO - HTTP Request: GET http://testserver/products/3605521159991 "HTTP/1.1 404 Not Found"
-2026-05-17 05:29:46,940 - INFO - HTTP Request: POST http://testserver/products/upload-template "HTTP/1.1 405 Method Not Allowed"
-2026-05-17 05:29:47,031 - INFO - HTTP Request: GET http://testserver/products?limit=5 "HTTP/1.1 200 OK"
-2026-05-17 05:29:47,044 - INFO - HTTP Request: GET http://testserver/products?q=Creed&limit=2 "HTTP/1.1 200 OK"
-2026-05-17 05:29:47,051 - INFO - HTTP Request: GET http://testserver/products?brand_id=1&page=1&limit=10 "HTTP/1.1 200 OK"
-2026-05-17 05:29:47,058 - INFO - HTTP Request: GET http://testserver/products/filters "HTTP/1.1 200 OK"
-2026-05-17 05:33:12,225 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 05:33:12,225 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 05:33:12,226 - INFO - Scheduler started
-2026-05-17 07:33:30,806 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 07:33:30,807 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 07:33:30,808 - INFO - Scheduler started
-2026-05-17 07:51:00,473 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:53:09,203 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 07:53:09,204 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 07:53:09,204 - INFO - Scheduler started
-2026-05-17 07:53:31,208 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:53:33,475 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:54:36,811 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:55:04,441 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:55:38,961 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:55:40,475 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:58:02,086 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 07:58:13,760 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-2026-05-17 09:27:51,774 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 09:27:51,775 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 09:27:51,775 - INFO - Scheduler started
-2026-05-17 09:28:05,820 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-17 09:28:05,821 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-17 09:28:05,821 - INFO - Scheduler started
-2026-05-18 04:09:10,783 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-18 04:09:10,784 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-18 04:09:10,785 - INFO - Scheduler started
-2026-05-18 04:10:29,087 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-18 04:10:29,088 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-18 04:10:29,088 - INFO - Scheduler started
-2026-05-18 04:15:07,448 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-18 04:15:07,449 - INFO - Added job "sync_sap_data" to job store "default"
-2026-05-18 04:15:07,449 - INFO - Scheduler started
-2026-05-18 04:19:41,395 - INFO - HTTP Request: GET http://testserver/products/6223001320105 "HTTP/1.1 404 Not Found"
-2026-05-18 04:20:29,510 - INFO - HTTP Request: PUT http://testserver/products/TST001 "HTTP/1.1 200 OK"
-2026-05-18 04:20:29,515 - INFO - HTTP Request: PUT http://testserver/products/TST001 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:20:29,518 - INFO - HTTP Request: PUT http://testserver/products/TST001_NEW "HTTP/1.1 404 Not Found"
-2026-05-18 04:20:29,524 - INFO - HTTP Request: PUT http://testserver/products/TST001_NEW "HTTP/1.1 404 Not Found"
-2026-05-18 04:20:29,529 - INFO - HTTP Request: PUT http://testserver/products/NONEXISTENT999 "HTTP/1.1 404 Not Found"
-2026-05-18 04:20:29,532 - INFO - HTTP Request: PUT http://testserver/products/TST001_NEW "HTTP/1.1 404 Not Found"
-2026-05-18 04:20:29,536 - INFO - HTTP Request: PUT http://testserver/products/TST001_NEW "HTTP/1.1 404 Not Found"
-2026-05-18 04:20:29,541 - INFO - HTTP Request: PUT http://testserver/products/TST001_NEW "HTTP/1.1 404 Not Found"
-2026-05-18 04:20:29,547 - INFO - HTTP Request: GET http://testserver/products/TST001_NEW "HTTP/1.1 404 Not Found"
-2026-05-18 04:21:25,832 - INFO - HTTP Request: PUT http://testserver/products/TST001 "HTTP/1.1 200 OK"
-2026-05-18 04:21:25,839 - WARNING - PK_CHANGE: barcode changed 'TST001' -> 'TST001NEWBC'
-2026-05-18 04:21:25,847 - INFO - HTTP Request: PUT http://testserver/products/TST001 "HTTP/1.1 200 OK"
-2026-05-18 04:22:01,758 - INFO - HTTP Request: PUT http://testserver/products/TST001 "HTTP/1.1 404 Not Found"
-2026-05-18 04:22:01,763 - INFO - HTTP Request: PUT http://testserver/products/TST001 "HTTP/1.1 404 Not Found"
-2026-05-18 04:22:01,767 - INFO - HTTP Request: PUT http://testserver/products/TST001 "HTTP/1.1 404 Not Found"
-2026-05-18 04:22:01,779 - INFO - HTTP Request: GET http://testserver/products/TST001NEWBC "HTTP/1.1 200 OK"
-2026-05-18 04:22:01,783 - INFO - HTTP Request: GET http://testserver/products/TST001 "HTTP/1.1 404 Not Found"
-2026-05-18 04:22:01,929 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 200 OK"
-2026-05-18 04:22:01,935 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 409 Conflict"
-2026-05-18 04:22:01,940 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:01,945 - INFO - HTTP Request: PUT http://testserver/products/NONEXISTENT999 "HTTP/1.1 404 Not Found"
-2026-05-18 04:22:01,950 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 409 Conflict"
-2026-05-18 04:22:01,957 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:01,962 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:01,968 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:01,975 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:01,981 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:01,987 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:01,994 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:02,000 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:02,009 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:02,013 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:22:02,025 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 200 OK"
-2026-05-18 04:22:02,033 - INFO - HTTP Request: PUT http://testserver/products/TST001NEWBC "HTTP/1.1 200 OK"
-2026-05-18 04:23:51,224 - INFO - HTTP Request: PUT http://testserver/products/79531003217 "HTTP/1.1 200 OK"
-2026-05-18 04:24:31,044 - INFO - HTTP Request: PUT http://testserver/products/79531003217 "HTTP/1.1 200 OK"
-2026-05-18 04:24:31,058 - INFO - HTTP Request: PUT http://testserver/products/79531003217 "HTTP/1.1 200 OK"
-2026-05-18 04:24:31,063 - WARNING - PK_CHANGE: barcode changed '79531003217' -> 'KIL0TEST01'
-2026-05-18 04:24:31,069 - INFO - HTTP Request: PUT http://testserver/products/79531003217 "HTTP/1.1 200 OK"
-2026-05-18 04:24:31,078 - INFO - HTTP Request: GET http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:31,084 - INFO - HTTP Request: GET http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:31,089 - INFO - HTTP Request: GET http://testserver/products/79531003217 "HTTP/1.1 404 Not Found"
-2026-05-18 04:24:31,129 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:31,134 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 409 Conflict"
-2026-05-18 04:24:31,140 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:31,144 - INFO - HTTP Request: PUT http://testserver/products/NONEXISTENT9999Z "HTTP/1.1 404 Not Found"
-2026-05-18 04:24:31,150 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 409 Conflict"
-2026-05-18 04:24:57,656 - INFO - HTTP Request: PUT http://testserver/products/79531003217 "HTTP/1.1 404 Not Found"
-2026-05-18 04:24:57,662 - INFO - HTTP Request: PUT http://testserver/products/79531003217 "HTTP/1.1 404 Not Found"
-2026-05-18 04:24:57,666 - INFO - HTTP Request: PUT http://testserver/products/79531003217 "HTTP/1.1 404 Not Found"
-2026-05-18 04:24:57,679 - INFO - HTTP Request: GET http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:57,683 - INFO - HTTP Request: GET http://testserver/products/79531003217 "HTTP/1.1 404 Not Found"
-2026-05-18 04:24:57,728 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:57,734 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 409 Conflict"
-2026-05-18 04:24:57,740 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,744 - INFO - HTTP Request: PUT http://testserver/products/NONEXISTENT9999Z "HTTP/1.1 404 Not Found"
-2026-05-18 04:24:57,750 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 409 Conflict"
-2026-05-18 04:24:57,755 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,760 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,766 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,771 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,777 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,783 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,790 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,796 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,801 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,808 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:24:57,819 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:57,827 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:57,831 - WARNING - PK_CHANGE: barcode changed 'KIL0TEST01' -> 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-2026-05-18 04:24:57,840 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 200 OK"
-2026-05-18 04:24:57,844 - INFO - HTTP Request: PUT http://testserver/products/KIL0TEST01 "HTTP/1.1 404 Not Found"
-2026-05-18 04:26:02,015 - INFO - HTTP Request: PUT http://testserver/products/100101 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,027 - INFO - HTTP Request: PUT http://testserver/products/100101 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,031 - WARNING - PK_CHANGE: barcode changed '100101' -> 'KILOUSECASE03'
-2026-05-18 04:26:02,037 - INFO - HTTP Request: PUT http://testserver/products/100101 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,046 - INFO - HTTP Request: GET http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,051 - INFO - HTTP Request: GET http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,057 - INFO - HTTP Request: GET http://testserver/products/100101 "HTTP/1.1 404 Not Found"
-2026-05-18 04:26:02,098 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,103 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 409 Conflict"
-2026-05-18 04:26:02,110 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,115 - INFO - HTTP Request: PUT http://testserver/products/NONEXISTENT9999Z "HTTP/1.1 404 Not Found"
-2026-05-18 04:26:02,121 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 409 Conflict"
-2026-05-18 04:26:02,126 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,131 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,136 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,144 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,150 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,158 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,164 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,170 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,176 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,180 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:02,189 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,196 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:26:02,201 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 409 Conflict"
-2026-05-18 04:26:02,206 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 422 Unprocessable Entity"
-2026-05-18 04:26:56,733 - INFO - HTTP Request: PUT http://testserver/products/100101 "HTTP/1.1 404 Not Found"
-2026-05-18 04:26:56,739 - INFO - HTTP Request: PUT http://testserver/products/100101 "HTTP/1.1 404 Not Found"
-2026-05-18 04:26:56,744 - INFO - HTTP Request: PUT http://testserver/products/100101 "HTTP/1.1 404 Not Found"
-2026-05-18 04:26:56,754 - INFO - HTTP Request: GET http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:29:50,015 - INFO - HTTP Request: GET http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:29:50,022 - INFO - HTTP Request: GET http://testserver/products/SANITY1779056989 "HTTP/1.1 404 Not Found"
-2026-05-18 04:29:50,030 - WARNING - PK_CHANGE: barcode changed 'KILOUSECASE03' -> 'SANITY1779056989'
-2026-05-18 04:29:50,049 - INFO - HTTP Request: PUT http://testserver/products/KILOUSECASE03 "HTTP/1.1 200 OK"
-2026-05-18 04:29:50,053 - INFO - HTTP Request: GET http://testserver/products/KILOUSECASE03 "HTTP/1.1 404 Not Found"
-2026-05-18 04:29:50,061 - INFO - HTTP Request: GET http://testserver/products/SANITY1779056989 "HTTP/1.1 200 OK"
+2026-05-18 16:51:53,420 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-18 16:51:53,421 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-18 16:51:53,421 - INFO - Scheduler started
+2026-05-18 16:52:14,115 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-18 16:52:14,115 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-18 16:52:14,115 - INFO - Scheduler started
+2026-05-18 16:52:55,286 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-18 16:52:55,286 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-18 16:52:55,286 - INFO - Scheduler started
+2026-05-18 16:53:59,871 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-18 16:53:59,873 - INFO - Added job "sync_sap_data" to job store "default"
+2026-05-18 16:53:59,873 - INFO - Scheduler started
+2026-05-18 16:54:43,590 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-18 16:54:54,042 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-18 16:54:59,146 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-18 16:55:03,196 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-18 16:55:12,146 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-18 16:55:15,747 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-18 16:55:22,179 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
