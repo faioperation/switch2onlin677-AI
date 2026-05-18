@@ -168,57 +168,68 @@ def validate_product_upload_columns(df: pd.DataFrame) -> dict:
     return normalized_columns
 
 
-# ── Smart get-or-create helpers ─────────────────────────────────────────────────
+# ── Smart get-or-create helpers (with per-upload in-memory cache) ────────────────
 
-def get_or_create_brand(db: Session, name: str) -> int | None:
-    """Look up or insert a Brand. Returns brand id or None."""
+def get_or_create_brand(
+    db: Session, name: str, cache: dict
+) -> int | None:
     if not name or pd.isna(name):
         return None
     name = str(name).strip()
-    existing = db.query(Brand).filter(
-        func.lower(Brand.name) == name.lower()
-    ).first()
+    key = name.lower()
+    if key in cache:
+        return cache[key]
+    existing = db.query(Brand).filter(func.lower(Brand.name) == key).first()
     if existing:
+        cache[key] = existing.id
         return existing.id
     new_brand = Brand(name=name)
     db.add(new_brand)
     db.flush()
+    cache[key] = new_brand.id
     return new_brand.id
 
 
-def get_or_create_category(db: Session, name: str) -> int | None:
-    """Look up or insert a Category. Returns category id or None."""
+def get_or_create_category(
+    db: Session, name: str, cache: dict
+) -> int | None:
     if not name or pd.isna(name):
         return None
     name = str(name).strip()
-    existing = db.query(Category).filter(
-        func.lower(Category.name) == name.lower()
-    ).first()
+    key = name.lower()
+    if key in cache:
+        return cache[key]
+    existing = db.query(Category).filter(func.lower(Category.name) == key).first()
     if existing:
+        cache[key] = existing.id
         return existing.id
     new_category = Category(name=name)
     db.add(new_category)
     db.flush()
+    cache[key] = new_category.id
     return new_category.id
 
 
-def get_or_create_subcategory(db: Session, name: str, category_id: int | None) -> int | None:
-    """Look up or insert a Subcategory scoped to the given category_id.
-    Returns subcategory id or None."""
+def get_or_create_subcategory(
+    db: Session, name: str, category_id: int | None, cache: dict
+) -> int | None:
     if not name or pd.isna(name):
         return None
     name = str(name).strip()
-    query = db.query(Subcategory).filter(
-        func.lower(Subcategory.name) == name.lower()
-    )
+    key = (name.lower(), category_id)
+    if key in cache:
+        return cache[key]
+    query = db.query(Subcategory).filter(func.lower(Subcategory.name) == name.lower())
     if category_id is not None:
         query = query.filter(Subcategory.category_id == category_id)
     existing = query.first()
     if existing:
+        cache[key] = existing.id
         return existing.id
     new_subcategory = Subcategory(name=name, category_id=category_id)
     db.add(new_subcategory)
     db.flush()
+    cache[key] = new_subcategory.id
     return new_subcategory.id
 
 
@@ -258,6 +269,10 @@ def upsert_product_upload(
     skipped_count = 0
     errors: list[dict] = []
 
+    brand_cache: dict = {}
+    category_cache: dict = {}
+    subcategory_cache: dict = {}
+
     for index, row in df.iterrows():
         row_number = index + 2
 
@@ -296,28 +311,18 @@ def upsert_product_upload(
         savepoint = db.begin_nested()
         row_action = None  # "created" | "updated" — tracked for count rollback
         try:
-            brand_id = get_or_create_brand(db, brand_name_raw)
-            category_id = get_or_create_category(db, category_name_raw)
+            brand_id = get_or_create_brand(db, brand_name_raw, brand_cache)
+            category_id = get_or_create_category(db, category_name_raw, category_cache)
             subcategory_id = None
             if subcategory_name_raw or category_id:
                 subcategory_id = get_or_create_subcategory(
-                    db, subcategory_name_raw, category_id
+                    db, subcategory_name_raw, category_id, subcategory_cache
                 )
 
-            brand_str = brand_name_raw or (
-                db.query(Brand.name).filter(Brand.id == brand_id).scalar()
-                if brand_id else None
-            )
-            category_str = category_name_raw or (
-                db.query(Category.name).filter(Category.id == category_id).scalar()
-                if category_id else None
-            )
-            subcategory_str = subcategory_name_raw or (
-                db.query(Subcategory.name).filter(
-                    Subcategory.id == subcategory_id
-                ).scalar()
-                if subcategory_id else None
-            )
+            # Use the raw names directly — no extra DB lookup needed
+            brand_str = brand_name_raw
+            category_str = category_name_raw
+            subcategory_str = subcategory_name_raw
 
             existing_product = (
                 db.query(Product).filter(Product.barcode == barcode).first()
