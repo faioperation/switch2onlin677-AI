@@ -261,65 +261,41 @@ def upsert_product_upload(
     for index, row in df.iterrows():
         row_number = index + 2
 
+        # ── Parse all values before touching the DB ──
+        item_code = clean_value(row.get(column_map.get("item_code")))
+        item_name = clean_value(row.get(column_map.get("item_name")))
+        brand_name_raw = clean_value(row.get(column_map.get("brand_name")))
+        category_name_raw = clean_value(row.get(column_map.get("category_name")))
+        subcategory_name_raw = clean_value(row.get(column_map.get("subcategory_name")))
+        sap_product_id = clean_value(row.get(column_map.get("sap_product_id")))
+        barcode = normalize_barcode(row.get(column_map.get("barcode")))
+        description = clean_value(row.get(column_map.get("description")))
+        image_url = clean_value(row.get(column_map.get("image_url")))
+        skin_type = clean_value(row.get(column_map.get("skin_type")))
+        concerns_raw = row.get(column_map.get("concerns"))
+        concerns = parse_concerns(concerns_raw if concerns_raw is not None else None)
+        tag_cols = [
+            column_map.get(c) for c in TAG_ALIASES
+            if column_map.get(c) is not None
+        ] + [column_map.get("tags")]
+        tag_cols = [c for c in tag_cols if c is not None]
+        tags = parse_tags(*tuple(row.get(c) for c in tag_cols))
+        price = clean_number(row.get(column_map.get("price")))
+        available_qty = clean_integer(row.get(column_map.get("available_qty")))
+        is_best_selling = parse_best_selling(row.get(column_map.get("is_best_selling")))
+        best_selling_scope = clean_value(row.get(column_map.get("best_selling_scope")))
+        sales_rank = clean_integer(row.get(column_map.get("sales_rank")))
+
+        if not barcode:
+            skipped_count += 1
+            errors.append({"row": row_number, "error": "barcode is required — row skipped."})
+            continue
+
+        # ── Each row runs inside its own savepoint so a failure here
+        #    rolls back only this row, keeping the session healthy. ──
+        savepoint = db.begin_nested()
+        row_action = None  # "created" | "updated" — tracked for count rollback
         try:
-            # ── Identity ──
-            item_code = clean_value(row.get(column_map.get("item_code")))
-            item_name = clean_value(row.get(column_map.get("item_name")))
-
-            # ── Required relation fields ──
-            brand_name_raw = clean_value(row.get(column_map.get("brand_name")))
-            category_name_raw = clean_value(row.get(column_map.get("category_name")))
-
-            # ── Optional relation fields ──
-            subcategory_name_raw = clean_value(
-                row.get(column_map.get("subcategory_name"))
-            )
-            sap_product_id = clean_value(
-                row.get(column_map.get("sap_product_id"))
-            )
-
-            # ── Content ──
-            barcode = normalize_barcode(row.get(column_map.get("barcode")))
-            description = clean_value(row.get(column_map.get("description")))
-            image_url = clean_value(row.get(column_map.get("image_url")))
-            skin_type = clean_value(row.get(column_map.get("skin_type")))
-
-            # ── Concerns ──
-            concerns_raw = row.get(column_map.get("concerns"))
-            concerns = parse_concerns(concerns_raw if concerns_raw is not None else None)
-
-            # ── Tags — merge all tag columns found in the row ──
-            tag_cols = [
-                column_map.get(c) for c in TAG_ALIASES
-                if column_map.get(c) is not None
-            ] + [column_map.get("tags")]
-            tag_cols = [c for c in tag_cols if c is not None]
-            tag_values = tuple(row.get(c) for c in tag_cols)
-            tags = parse_tags(*tag_values)
-
-            # ── Pricing ──
-            price = clean_number(row.get(column_map.get("price")))
-            available_qty = clean_integer(row.get(column_map.get("available_qty")))
-
-            # ── Sales intelligence ──
-            is_best_selling = parse_best_selling(
-                row.get(column_map.get("is_best_selling"))
-            )
-            best_selling_scope = clean_value(
-                row.get(column_map.get("best_selling_scope"))
-            )
-            sales_rank = clean_integer(row.get(column_map.get("sales_rank")))
-
-            # ── Required-field guard ──
-            if not barcode:
-                skipped_count += 1
-                errors.append({
-                    "row": row_number,
-                    "error": "barcode is required — row skipped.",
-                })
-                continue
-
-            # ── Smart get-or-create for relations ──
             brand_id = get_or_create_brand(db, brand_name_raw)
             category_id = get_or_create_category(db, category_name_raw)
             subcategory_id = None
@@ -328,7 +304,6 @@ def upsert_product_upload(
                     db, subcategory_name_raw, category_id
                 )
 
-            # ── Fallback: derive string names from IDs for search-text ──
             brand_str = brand_name_raw or (
                 db.query(Brand.name).filter(Brand.id == brand_id).scalar()
                 if brand_id else None
@@ -344,24 +319,20 @@ def upsert_product_upload(
                 if subcategory_id else None
             )
 
-            # ── Resolve physical barcode key ──
-            product_barcode = barcode
-
             existing_product = (
-                db.query(Product)
-                .filter(Product.barcode == product_barcode)
-                .first()
+                db.query(Product).filter(Product.barcode == barcode).first()
             )
 
             if existing_product:
                 product = existing_product
+                row_action = "updated"
                 updated_count += 1
             else:
-                product = Product(barcode=product_barcode)
+                product = Product(barcode=barcode)
                 db.add(product)
+                row_action = "created"
                 created_count += 1
 
-            # ── Upsert product fields ──
             product.item_code = item_code
             product.item_name = item_name
             product.brand_id = brand_id
@@ -379,7 +350,6 @@ def upsert_product_upload(
             product.best_selling_scope = best_selling_scope
             product.sales_rank = sales_rank
 
-            # ── Sync productsearchindex ──
             search_text = build_search_text(
                 item_code=item_code,
                 item_name=item_name,
@@ -390,30 +360,33 @@ def upsert_product_upload(
 
             existing_index = (
                 db.query(ProductSearchIndex)
-                .filter(ProductSearchIndex.product_id == product_barcode)
+                .filter(ProductSearchIndex.product_id == barcode)
                 .first()
             )
-
             if existing_index:
                 search_index = existing_index
             else:
-                search_index = ProductSearchIndex(product_id=product_barcode)
+                search_index = ProductSearchIndex(product_id=barcode)
                 db.add(search_index)
 
             search_index.item_code = item_code
-            search_index.barcode = product_barcode
+            search_index.barcode = barcode
             search_index.item_name = item_name
             search_index.brand_name = brand_str
             search_index.category_name = category_str
             search_index.subcategory_name = subcategory_str
             search_index.search_text = search_text
 
+            savepoint.commit()
+
         except Exception as e:
+            savepoint.rollback()
+            if row_action == "updated":
+                updated_count -= 1
+            elif row_action == "created":
+                created_count -= 1
             skipped_count += 1
-            errors.append({
-                "row": row_number,
-                "error": str(e),
-            })
+            errors.append({"row": row_number, "error": str(e)})
 
     if dry_run:
         db.rollback()
