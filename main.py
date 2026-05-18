@@ -30,6 +30,14 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pathlib import Path
 from pypdf import PdfReader
 
+import base64
+import re
+from io import BytesIO
+from PIL import Image, ImageOps
+from pillow_heif import register_heif_opener
+
+register_heif_opener()
+
 load_dotenv()
 
 # Ensure tables exist on startup
@@ -263,6 +271,111 @@ def load_system_prompt():
     template = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
     return render_prompt_template(template)
 
+
+SUPPORTED_IMAGE_MIMES = {
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "image/gif",
+}
+
+HEIC_IMAGE_MIMES = {
+    "image/heic",
+    "image/heif",
+    "image/heic-sequence",
+    "image/heif-sequence",
+    "image/x-heic",
+    "image/x-heif",
+}
+
+GENERIC_IMAGE_MIMES = {
+    "",
+    "application/octet-stream",
+    "binary/octet-stream",
+}
+
+HEIF_BRANDS = {
+    b"heic",
+    b"heix",
+    b"hevc",
+    b"hevx",
+    b"heim",
+    b"heis",
+    b"hevm",
+    b"hevs",
+    b"mif1",
+    b"msf1",
+}
+
+
+def looks_like_heif(image_bytes: bytes) -> bool:
+    if len(image_bytes) < 12:
+        return False
+
+    return (
+        image_bytes[4:8] == b"ftyp"
+        and (
+            image_bytes[8:12] in HEIF_BRANDS
+            or any(brand in image_bytes[12:64] for brand in HEIF_BRANDS)
+        )
+    )
+
+def normalize_image_for_openai(data_url: str) -> str:
+    if not data_url or not data_url.startswith("data:"):
+        return data_url
+
+    match = re.match(r"data:(.*?);base64,(.*)$", data_url, re.DOTALL)
+    if not match:
+        raise HTTPException(status_code=400, detail="Invalid image format.")
+
+    mime_type = match.group(1).lower()
+    base64_data = re.sub(r"\s+", "", match.group(2))
+
+    if mime_type in SUPPORTED_IMAGE_MIMES:
+        return data_url
+
+    try:
+        image_bytes = base64.b64decode(base64_data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image data. Please upload JPG, PNG, WEBP, GIF, or HEIC. Error: {str(e)}"
+        )
+
+    is_known_heic = mime_type in HEIC_IMAGE_MIMES
+    is_generic_heic = mime_type in GENERIC_IMAGE_MIMES and looks_like_heif(image_bytes)
+
+    if not is_known_heic and not is_generic_heic:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type: {mime_type or 'unknown'}. Please upload JPG, PNG, WEBP, GIF, or HEIC."
+        )
+
+    try:
+        image = Image.open(BytesIO(image_bytes))
+        image = ImageOps.exif_transpose(image)
+
+        if image.mode in ("RGBA", "LA", "P"):
+            image = image.convert("RGBA")
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[-1])
+            image = background
+        else:
+            image = image.convert("RGB")
+
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=90)
+
+        jpeg_base64 = base64.b64encode(output.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{jpeg_base64}"
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not process HEIC image. Please upload JPG or PNG. Error: {str(e)}"
+        )
+    
 
 TOOL_DEFINITIONS = [
     {
@@ -805,10 +918,12 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
 
     # Prepare multimodal content if an image is present
     if data.image_url:
+        image_for_ai = normalize_image_for_openai(data.image_url)
+
         user_content = [{"type": "text", "text": data.message}]
         user_content.append({
             "type": "image_url",
-            "image_url": {"url": data.image_url}
+            "image_url": {"url": image_for_ai}
         })
         # The last message in messages_for_ai is currently the user message
         messages_for_ai[-1]["content"] = user_content
