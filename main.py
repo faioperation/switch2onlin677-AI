@@ -480,7 +480,7 @@ def run_tool(tool_name: str, args: dict) -> str:
             category=args.get("category"),
             limit=args.get("limit", 10),
             skip=args.get("skip", 0),
-            sort_by=args.get("sort_by", "name")
+            sort_by=args.get("sort_by", "item_name")
         )
     elif tool_name == "get_product_details":
         result = get_product_details(args["product_id"])
@@ -1009,25 +1009,39 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                 tool_result = json.loads(tool_result_str)
 
                 # Process results
-                if tool_result.get("found"):
-                    # ONLY search_products results go to the UI for card rendering
-                    if tool_name == "search_products" and "products" in tool_result:
-                        for p in tool_result["products"]:
-                            price = str(p.get("price", "")).strip().lower()
+                if tool_name == "search_products" and "products" in tool_result:
+                    # Use only the latest product search result for UI cards
+                    products = []
 
-                            if price in ["", "n/a", "na", "none", "null", "0", "0.0"]:
-                                continue
-                            products.append({
-                                "id":          p.get("id", ""),
-                                "name":        p.get("name", ""),
-                                "price":       p.get("price", ""),
-                                "barcode":     p.get("id", ""), # Barcode is stored in 'id' key from tools.py
-                                "description": p.get("description", ""),
-                                "image_url":   p.get("image_url", ""),
-                                "stock":       p.get("available_qty", 0),
-                            })
-                        if products:
-                            image_url = products[0]["image_url"]
+                    clean_tool_products = []
+
+                    for p in tool_result["products"]:
+                        price = str(p.get("price", "")).strip().lower()
+
+                        if price in ["", "n/a", "na", "none", "null", "0", "0.0", "not available"]:
+                            continue
+
+                        clean_tool_products.append(p)
+
+                        products.append({
+                            "id": p.get("id", ""),
+                            "name": p.get("name", ""),
+                            "price": p.get("price", ""),
+                            "barcode": p.get("id", ""),
+                            "description": p.get("description", ""),
+                            "image_url": p.get("image_url", ""),
+                            "stock": p.get("available_qty", 0),
+                        })
+
+                    # IMPORTANT: also clean the tool result before GPT sees it
+                    tool_result["products"] = clean_tool_products
+                    tool_result["total_found"] = len(clean_tool_products)
+                    tool_result["returned"] = len(clean_tool_products)
+
+                    tool_result_str = json.dumps(tool_result, ensure_ascii=False)
+
+                    if products:
+                        image_url = products[0]["image_url"]
 
 
                 
