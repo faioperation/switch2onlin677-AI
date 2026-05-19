@@ -26,11 +26,19 @@ def get_iqd_rate() -> float:
 
 CURRENCY_SYMBOL = "IQD"
 
+def is_valid_raw_price(value) -> bool:
+    try:
+        return value is not None and float(value) > 0
+    except (TypeError, ValueError):
+        return False
+    
+
 
 def convert_to_iqd(price_usd: float) -> str:
-    if not price_usd or price_usd == 0:
+    if not is_valid_raw_price(price_usd):
         return "N/A"
-    iqd_price = int(price_usd * get_iqd_rate())
+
+    iqd_price = int(float(price_usd) * get_iqd_rate())
     return f"{iqd_price:,} {CURRENCY_SYMBOL}"
 
 
@@ -49,27 +57,38 @@ def format_products(products: List[Dict], limit: int = 4) -> List[Dict]:
         return []
 
     formatted = []
-    for p in products[:limit]:
+
+    for p in products:
+        if len(formatted) >= limit:
+            break
+
         if not isinstance(p, dict):
             continue
 
         raw_price = p.get("price", 0)
+
+        # IMPORTANT: never send invalid-price products to GPT or frontend
+        if not is_valid_raw_price(raw_price):
+            continue
+
         barcode = p.get("barcode", "Unknown")
         img_url = str(p.get("image_url")).strip() if p.get("image_url") else None
+
         if img_url and img_url.lower() == "not found":
             img_url = None
 
         formatted.append({
-            "id":          barcode,
-            "name":        p.get("item_name", "Product"),
-            "price":       convert_to_iqd(raw_price),
-            "raw_price":   raw_price,
+            "id": barcode,
+            "name": p.get("item_name", "Product"),
+            "price": convert_to_iqd(raw_price),
+            "raw_price": float(raw_price),
             "description": p.get("description", ""),
-            "category":    p.get("category_name", "Beauty & Personal Care"),
-            "brand":       p.get("brand_name", ""),
-            "image_url":   img_url,
-            "order_link":  f"{ORDER_BASE_URL}/{barcode}",
+            "category": p.get("category_name", "Beauty & Personal Care"),
+            "brand": p.get("brand_name", ""),
+            "image_url": img_url,
+            "order_link": f"{ORDER_BASE_URL}/{barcode}",
         })
+
     return formatted
 
 
@@ -171,6 +190,8 @@ def search_products(
                         OR psi.brand_name ILIKE :query_like
                         OR p.item_name    %     :query
                     )
+                    AND p.price IS NOT NULL
+                    AND p.price > 0
                     AND (:min_price IS NULL OR p.price >= :min_price)
                     AND (:max_price IS NULL OR p.price <= :max_price)
                     AND (:in_stock  IS FALSE OR p.available_qty > 0)
@@ -230,10 +251,17 @@ def search_products(
         sorted_products = sort_products(products, sort_by)
         formatted = format_products(sorted_products, limit)
 
+        if not formatted:
+            return {
+                "found": False,
+                "message": f"Matching items for '{query_cleaned}' exist, but none have valid prices right now.",
+            }
+
         return {
-            "found":       True,
-            "total_found": len(products),
-            "products":    formatted,
+            "found": True,
+            "total_found": len(formatted),
+            "returned": len(formatted),
+            "products": formatted,
         }
 
     finally:
