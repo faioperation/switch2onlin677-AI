@@ -250,21 +250,31 @@ def load_company_knowledge():
 
 def save_lead(user_id: str, products: list):
     if not products:
+        print("[LEAD] Skipped: no products provided.")
+        return
+
+    if not LEADS_API_URL:
+        print("[LEAD] Skipped: LEADS_API_URL not set in environment.")
         return
 
     lead_payload = {
         "user_id": user_id,
-        "interested_product": products[0].get("name") if products else "",
+        "interested_product": products[0].get("name", ""),
     }
 
-    try:
-        response = requests.post(LEADS_API_URL, json=lead_payload, timeout=10)
+    print(f"[LEAD] Attempting to save lead → payload: {lead_payload}")
 
-        print("LEAD POST STATUS:", response.status_code)
-        print("LEAD POST RESPONSE:", response.text)
+    try:
+        response = requests.post(
+            LEADS_API_URL,
+            json=lead_payload,
+            timeout=10
+        )
+        print(f"[LEAD] POST status: {response.status_code}")
+        print(f"[LEAD] POST response: {response.text}")
 
     except Exception as e:
-        print("LEAD POST ERROR:", str(e))
+        print(f"[LEAD] ERROR: {str(e)}")
 
 
 FIXED_WELCOME_EN = (
@@ -1024,20 +1034,61 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                 tool_result = json.loads(tool_result_str)
 
                 # Process results
+                # if tool_name == "search_products" and "products" in tool_result:
+                #     # Use only the latest product search result for UI cards
+                #     products = []
+
+                #     clean_tool_products = []
+
+                #     for p in tool_result["products"]:
+                #         price = str(p.get("price", "")).strip().lower()
+
+                #         if price in ["", "n/a", "na", "none", "null", "0", "0.0", "not available"]:
+                #             continue
+
+                #         clean_tool_products.append(p)
+
+                #         products.append({
+                #             "id": p.get("id", ""),
+                #             "name": p.get("name", ""),
+                #             "price": p.get("price", ""),
+                #             "barcode": p.get("id", ""),
+                #             "description": p.get("description", ""),
+                #             "image_url": p.get("image_url", ""),
+                #             "stock": p.get("available_qty", 0),
+                #         })
+
+                #     # IMPORTANT: also clean the tool result before GPT sees it
+                #     tool_result["products"] = clean_tool_products
+                #     tool_result["total_found"] = len(clean_tool_products)
+                #     tool_result["returned"] = len(clean_tool_products)
+
+                #     tool_result_str = json.dumps(tool_result, ensure_ascii=False)
+
+                #     if products:
+                #         image_url = products[0]["image_url"]
+
+                #     # Note: get_product_details results are NOT added to the 'products' list.
+                #     # They are passed to the AI via 'messages_for_ai' for internal info (price/stock).
+                #     if tool_name == "get_product_details":
+                #         if not image_url:
+                #             image_url = tool_result.get("image_url")
+
+                #         interested_product = tool_result.get(
+                #             "item_name"
+                #         ) or tool_result.get("name")
+
+                #         if interested_product:
+                #             save_lead(data.user_id, [{"name": interested_product}])
+                
                 if tool_name == "search_products" and "products" in tool_result:
-                    # Use only the latest product search result for UI cards
                     products = []
-
                     clean_tool_products = []
-
                     for p in tool_result["products"]:
                         price = str(p.get("price", "")).strip().lower()
-
                         if price in ["", "n/a", "na", "none", "null", "0", "0.0", "not available"]:
                             continue
-
                         clean_tool_products.append(p)
-
                         products.append({
                             "id": p.get("id", ""),
                             "name": p.get("name", ""),
@@ -1047,29 +1098,24 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
                             "image_url": p.get("image_url", ""),
                             "stock": p.get("available_qty", 0),
                         })
-
-                    # IMPORTANT: also clean the tool result before GPT sees it
                     tool_result["products"] = clean_tool_products
                     tool_result["total_found"] = len(clean_tool_products)
                     tool_result["returned"] = len(clean_tool_products)
-
                     tool_result_str = json.dumps(tool_result, ensure_ascii=False)
-
                     if products:
                         image_url = products[0]["image_url"]
+                        print(f"[LEAD] search_products returned {len(products)} products → saving lead for user {data.user_id}")
+                        save_lead(data.user_id, [{"name": p["name"]} for p in products])
 
-                    # Note: get_product_details results are NOT added to the 'products' list.
-                    # They are passed to the AI via 'messages_for_ai' for internal info (price/stock).
-                    if tool_name == "get_product_details":
-                        if not image_url:
-                            image_url = tool_result.get("image_url")
-
-                        interested_product = tool_result.get(
-                            "item_name"
-                        ) or tool_result.get("name")
-
-                        if interested_product:
-                            save_lead(data.user_id, [{"name": interested_product}])
+                if tool_name == "get_product_details":
+                    if not image_url:
+                        image_url = tool_result.get("image_url")
+                    interested_product = tool_result.get("item_name") or tool_result.get("name")
+                    print(f"[DEBUG] get_product_details result → interested_product: {interested_product} - user_id: {data.user_id}")
+                    if interested_product:
+                        save_lead(data.user_id, [{"name": interested_product}])
+                    else:
+                        print(f"[DEBUG] get_product_details result has no identifiable product name for lead saving - user_id: {data.user_id}")
 
                 messages_for_ai.append(
                     {
