@@ -53,8 +53,9 @@ load_dotenv()
 
 from sqlalchemy import MetaData
 
+
 def safe_create_all():
-    all_tables = Base.metadata.tables              # OrderedDict of every registered table
+    all_tables = Base.metadata.tables  # OrderedDict of every registered table
     core_tables = {k: v for k, v in all_tables.items() if k != "knowledge_chunks"}
     if core_tables:
         core_meta = MetaData()
@@ -76,6 +77,7 @@ def safe_create_all():
                 "  Install pgvector: pip install pgvector && CREATE EXTENSION vector;\n"
                 "  RAG features will be unavailable but the app will function normally."
             )
+
 
 safe_create_all()
 
@@ -117,14 +119,17 @@ async def start_scheduler():
         "06:00 and 18:00 Iraq time."
     )
 
+
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 @app.get("/health")
 def health_check():
     """Health check endpoint for production monitoring."""
     return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
+
 
 @app.post("/sap/sync-now")
 async def sync_sap_now():
@@ -134,12 +139,14 @@ async def sync_sap_now():
         "success": True,
         "message": "SAP sync completed.",
         "synced_at": datetime.datetime.now(IRAQ_TIMEZONE).isoformat(),
-        "timezone": "Asia/Baghdad"
+        "timezone": "Asia/Baghdad",
     }
+
+
 MAX_HISTORY = 70
 
 LEADS_FILE = os.path.join(os.path.dirname(__file__), "leads.json")
-LEADS_API_URL = "https://test11.fireai.agency/api/v1/leads/"
+LEADS_API_URL = os.getenv("LEADS_API_URL")
 
 RATE_FILE = os.path.join(os.path.dirname(__file__), "rate.json")
 
@@ -156,6 +163,7 @@ MAX_KNOWLEDGE_UPLOAD_MB = 20
 
 KNOWLEDGE_BASE_DIR.mkdir(exist_ok=True)
 
+
 def load_iqd_rate():
     if not os.path.exists(RATE_FILE):
         return 1310
@@ -169,11 +177,14 @@ def load_iqd_rate():
 def save_iqd_rate(rate: float):
     with open(RATE_FILE, "w", encoding="utf-8") as f:
         json.dump({"iqd_rate": rate}, f, ensure_ascii=False, indent=2)
+
+
 def load_leads():
     if not os.path.exists(LEADS_FILE):
         return []
     with open(LEADS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def load_knowledge_index() -> list:
     if not KNOWLEDGE_INDEX_FILE.exists():
@@ -210,32 +221,24 @@ def extract_text_from_upload(file_path: Path) -> str:
         return file_path.read_text(encoding="utf-8", errors="ignore").strip()
 
     raise HTTPException(
-        status_code=400,
-        detail="Only PDF and TXT knowledge files are supported."
+        status_code=400, detail="Only PDF and TXT knowledge files are supported."
     )
 
 
 def safe_upload_name(filename: str) -> str:
-    safe = "".join(
-        c if c.isalnum() or c in {"-", "_", "."} else "_"
-        for c in filename
-    )
+    safe = "".join(c if c.isalnum() or c in {"-", "_", "."} else "_" for c in filename)
     return safe or "knowledge_file"
 
 
 def load_company_knowledge():
     parts = []
 
-
     # Load uploaded PDF/TXT knowledge files
     for item in load_knowledge_index():
         text_path = KNOWLEDGE_BASE_DIR / item.get("text_filename", "")
 
         if text_path.exists():
-            text = text_path.read_text(
-                encoding="utf-8",
-                errors="ignore"
-            ).strip()
+            text = text_path.read_text(encoding="utf-8", errors="ignore").strip()
 
             if text:
                 parts.append(
@@ -243,7 +246,7 @@ def load_company_knowledge():
                 )
 
     return "\n\n".join(parts)
-    
+
 
 def save_lead(user_id: str, products: list):
     if not products:
@@ -251,21 +254,18 @@ def save_lead(user_id: str, products: list):
 
     lead_payload = {
         "user_id": user_id,
-        "interested_products": products[0].get("name") if products else ""
+        "interested_product": products[0].get("name") if products else "",
     }
 
     try:
-        response = requests.post(
-            LEADS_API_URL,
-            json=lead_payload,
-            timeout=10
-        )
+        response = requests.post(LEADS_API_URL, json=lead_payload, timeout=10)
 
         print("LEAD POST STATUS:", response.status_code)
         print("LEAD POST RESPONSE:", response.text)
 
     except Exception as e:
         print("LEAD POST ERROR:", str(e))
+
 
 FIXED_WELCOME_EN = (
     "✨ Welcome to DhifafBot, your personal premium concierge. "
@@ -291,22 +291,20 @@ FIXED_GOODBYE_AR = (
     "أتمنى لك يوماً جميلاً! ✨"
 )
 
+
 # Load system prompt from file
 def render_prompt_template(template: str) -> str:
     return template.format(
         FIXED_WELCOME_EN=FIXED_WELCOME_EN,
         FIXED_WELCOME_AR=FIXED_WELCOME_AR,
         FIXED_GOODBYE_EN=FIXED_GOODBYE_EN,
-        FIXED_GOODBYE_AR=FIXED_GOODBYE_AR
+        FIXED_GOODBYE_AR=FIXED_GOODBYE_AR,
     )
 
 
 def load_system_prompt():
     if not SYSTEM_PROMPT_FILE.exists():
-        raise HTTPException(
-            status_code=500,
-            detail="system_prompt.txt was not found."
-        )
+        raise HTTPException(status_code=500, detail="system_prompt.txt was not found.")
 
     template = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
     return render_prompt_template(template)
@@ -353,13 +351,11 @@ def looks_like_heif(image_bytes: bytes) -> bool:
     if len(image_bytes) < 12:
         return False
 
-    return (
-        image_bytes[4:8] == b"ftyp"
-        and (
-            image_bytes[8:12] in HEIF_BRANDS
-            or any(brand in image_bytes[12:64] for brand in HEIF_BRANDS)
-        )
+    return image_bytes[4:8] == b"ftyp" and (
+        image_bytes[8:12] in HEIF_BRANDS
+        or any(brand in image_bytes[12:64] for brand in HEIF_BRANDS)
     )
+
 
 def normalize_image_for_openai(data_url: str) -> str:
     if not data_url or not data_url.startswith("data:"):
@@ -380,7 +376,7 @@ def normalize_image_for_openai(data_url: str) -> str:
     except Exception as e:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid image data. Please upload JPG, PNG, WEBP, GIF, or HEIC. Error: {str(e)}"
+            detail=f"Invalid image data. Please upload JPG, PNG, WEBP, GIF, or HEIC. Error: {str(e)}",
         )
 
     is_known_heic = mime_type in HEIC_IMAGE_MIMES
@@ -389,7 +385,7 @@ def normalize_image_for_openai(data_url: str) -> str:
     if not is_known_heic and not is_generic_heic:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported image type: {mime_type or 'unknown'}. Please upload JPG, PNG, WEBP, GIF, or HEIC."
+            detail=f"Unsupported image type: {mime_type or 'unknown'}. Please upload JPG, PNG, WEBP, GIF, or HEIC.",
         )
 
     try:
@@ -413,9 +409,9 @@ def normalize_image_for_openai(data_url: str) -> str:
     except Exception as e:
         raise HTTPException(
             status_code=400,
-            detail=f"Could not process HEIC image. Please upload JPG or PNG. Error: {str(e)}"
+            detail=f"Could not process HEIC image. Please upload JPG or PNG. Error: {str(e)}",
         )
-    
+
 
 TOOL_DEFINITIONS = [
     {
@@ -426,18 +422,36 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search keyword (ALWAYS use English keywords here for better matching, e.g. 'shampoo' instead of 'شامبو')"},
+                    "query": {
+                        "type": "string",
+                        "description": "Search keyword (ALWAYS use English keywords here for better matching, e.g. 'shampoo' instead of 'شامبو')",
+                    },
                     "max_price": {"type": "number", "description": "Maximum price"},
                     "min_price": {"type": "number", "description": "Minimum price"},
-                    "in_stock": {"type": "boolean", "description": "If true, return only in-stock products"},
-                    "category": {"type": "string", "description": "Optional category to filter by (e.g., 'Perfume', 'Skincare', 'Hair care')"},
-                    "limit": {"type": "integer", "description": "Maximum number of products to return (default 10). Use 3 for initial recommendations."},
-                    "skip": {"type": "integer", "description": "Number of products to skip for pagination (default 0)"},
-                    "sort_by": {"type": "string", "description": "Sort order: 'name', 'price_asc', 'price_desc' (default 'name')"}
+                    "in_stock": {
+                        "type": "boolean",
+                        "description": "If true, return only in-stock products",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "Optional category to filter by (e.g., 'Perfume', 'Skincare', 'Hair care')",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of products to return (default 10). Use 3 for initial recommendations.",
+                    },
+                    "skip": {
+                        "type": "integer",
+                        "description": "Number of products to skip for pagination (default 0)",
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Sort order: 'name', 'price_asc', 'price_desc' (default 'name')",
+                    },
                 },
-                "required": ["query"]
-            }
-        }
+                "required": ["query"],
+            },
+        },
     },
     {
         "type": "function",
@@ -447,11 +461,14 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "product_id": {"type": "string", "description": "Product ItemCode from search results"}
+                    "product_id": {
+                        "type": "string",
+                        "description": "Product ItemCode from search results",
+                    }
                 },
-                "required": ["product_id"]
-            }
-        }
+                "required": ["product_id"],
+            },
+        },
     },
     {
         "type": "function",
@@ -461,11 +478,14 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Keyword to check (e.g., 'NYX', 'acne', 'cleanser')"}
+                    "query": {
+                        "type": "string",
+                        "description": "Keyword to check (e.g., 'NYX', 'acne', 'cleanser')",
+                    }
                 },
-                "required": ["query"]
-            }
-        }
+                "required": ["query"],
+            },
+        },
     },
 ]
 
@@ -480,7 +500,7 @@ def run_tool(tool_name: str, args: dict) -> str:
             category=args.get("category"),
             limit=args.get("limit", 10),
             skip=args.get("skip", 0),
-            sort_by=args.get("sort_by", "name")
+            sort_by=args.get("sort_by", "name"),
         )
     elif tool_name == "get_product_details":
         result = get_product_details(args["product_id"])
@@ -519,7 +539,9 @@ def get_history(user_id: str, db: Session) -> list:
     return history
 
 
-def save_message(user_id: str, role: str, content: str, db: Session, metadata: dict | None = None) -> int:
+def save_message(
+    user_id: str, role: str, content: str, db: Session, metadata: dict | None = None
+) -> int:
     history_item = ChatHistory(user_id=user_id, role=role, content=content)
     if metadata:
         history_item.metadata_json = json.dumps(metadata, ensure_ascii=False)
@@ -529,18 +551,21 @@ def save_message(user_id: str, role: str, content: str, db: Session, metadata: d
     return history_item.id
 
 
-
 # ============================================================
 # Chat UI
 # ============================================================
+
 
 @app.get("/", response_class=FileResponse)
 def chat_ui():
     index_path = os.path.join(os.path.dirname(__file__), "static/index.html")
     return FileResponse(index_path)
 
+
 class RateRequest(BaseModel):
     iqd_rate: float
+
+
 # API Endpoints
 class PromptUpdateRequest(BaseModel):
     prompt: str
@@ -576,48 +601,40 @@ def delete_chat_history(user_id: str, db: Session = Depends(get_db)):
     db.commit()
     return {"deleted": deleted}
 
+
 @app.get("/leads")
 def get_leads():
     return load_leads()
 
+
 @app.get("/rate")
 def get_rate():
-    return {
-        "iqd_rate": load_iqd_rate()
-    }
+    return {"iqd_rate": load_iqd_rate()}
 
 
 @app.post("/rate")
 def update_rate(data: RateRequest):
     save_iqd_rate(data.iqd_rate)
-    return {
-        "success": True,
-        "iqd_rate": data.iqd_rate
-    }
+    return {"success": True, "iqd_rate": data.iqd_rate}
+
 
 @app.get("/prompt", response_model=PromptResponse)
 def get_prompt(render: bool = False):
     if not SYSTEM_PROMPT_FILE.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="system_prompt.txt was not found."
-        )
+        raise HTTPException(status_code=404, detail="system_prompt.txt was not found.")
 
     prompt = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
 
     return PromptResponse(
         prompt=prompt,
-        rendered_prompt=render_prompt_template(prompt) if render else None
+        rendered_prompt=render_prompt_template(prompt) if render else None,
     )
 
 
 @app.put("/prompt", response_model=PromptResponse)
 def update_prompt(data: PromptUpdateRequest):
     if not data.prompt.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Prompt cannot be empty."
-        )
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty.")
 
     try:
         rendered = render_prompt_template(data.prompt)
@@ -628,15 +645,12 @@ def update_prompt(data: PromptUpdateRequest):
                 f"Unknown prompt variable: {e}. "
                 "Allowed variables: FIXED_WELCOME_EN, FIXED_WELCOME_AR, "
                 "FIXED_GOODBYE_EN, FIXED_GOODBYE_AR"
-            )
+            ),
         )
 
     SYSTEM_PROMPT_FILE.write_text(data.prompt, encoding="utf-8")
 
-    return PromptResponse(
-        prompt=data.prompt,
-        rendered_prompt=rendered
-    )
+    return PromptResponse(prompt=data.prompt, rendered_prompt=rendered)
 
 
 @app.get("/knowledge")
@@ -654,8 +668,7 @@ async def upload_knowledge_file(file: UploadFile = File(...)):
 
     if suffix not in ALLOWED_KNOWLEDGE_EXTENSIONS:
         raise HTTPException(
-            status_code=400,
-            detail="Only PDF and TXT files are supported."
+            status_code=400, detail="Only PDF and TXT files are supported."
         )
 
     content = await file.read()
@@ -664,13 +677,11 @@ async def upload_knowledge_file(file: UploadFile = File(...)):
     if len(content) > max_bytes:
         raise HTTPException(
             status_code=400,
-            detail=f"File is too large. Max size is {MAX_KNOWLEDGE_UPLOAD_MB} MB."
+            detail=f"File is too large. Max size is {MAX_KNOWLEDGE_UPLOAD_MB} MB.",
         )
 
     timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    random_part = "".join(
-        random.choices(string.ascii_lowercase + string.digits, k=6)
-    )
+    random_part = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
     knowledge_id = f"{timestamp}_{random_part}"
     safe_name = safe_upload_name(original_name)
@@ -684,8 +695,7 @@ async def upload_knowledge_file(file: UploadFile = File(...)):
     if not extracted_text:
         stored_path.unlink(missing_ok=True)
         raise HTTPException(
-            status_code=400,
-            detail="No readable text was found in the uploaded file."
+            status_code=400, detail="No readable text was found in the uploaded file."
         )
 
     text_filename = f"{stored_filename}.txt"
@@ -707,41 +717,26 @@ async def upload_knowledge_file(file: UploadFile = File(...)):
     items.append(record)
     save_knowledge_index(items)
 
-    return {
-        "success": True,
-        "file": record
-    }
+    return {"success": True, "file": record}
 
 
 @app.delete("/knowledge/{knowledge_id}")
 def delete_knowledge_file(knowledge_id: str):
     items = load_knowledge_index()
 
-    match = next(
-        (item for item in items if item.get("id") == knowledge_id),
-        None
-    )
+    match = next((item for item in items if item.get("id") == knowledge_id), None)
 
     if not match:
-        raise HTTPException(
-            status_code=404,
-            detail="Knowledge file not found."
-        )
+        raise HTTPException(status_code=404, detail="Knowledge file not found.")
 
     for key in ["stored_filename", "text_filename"]:
         filename = match.get(key)
         if filename:
             (KNOWLEDGE_BASE_DIR / filename).unlink(missing_ok=True)
 
-    save_knowledge_index([
-        item for item in items
-        if item.get("id") != knowledge_id
-    ])
+    save_knowledge_index([item for item in items if item.get("id") != knowledge_id])
 
-    return {
-        "success": True,
-        "deleted": knowledge_id
-    }
+    return {"success": True, "deleted": knowledge_id}
 
 
 @app.get("/products/upload-template")
@@ -768,22 +763,15 @@ async def upload_products(
 ):
     filename = file.filename or ""
 
-    if not (
-        filename.lower().endswith(".xlsx")
-        or filename.lower().endswith(".csv")
-    ):
+    if not (filename.lower().endswith(".xlsx") or filename.lower().endswith(".csv")):
         raise HTTPException(
-            status_code=400,
-            detail="Only .xlsx and .csv files are supported."
+            status_code=400, detail="Only .xlsx and .csv files are supported."
         )
 
     content = await file.read()
 
     if not content:
-        raise HTTPException(
-            status_code=400,
-            detail="Uploaded file is empty."
-        )
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     try:
         result = upsert_product_upload(
@@ -804,19 +792,11 @@ async def upload_products(
         }
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Product upload failed: {str(e)}"
-        )
-    
-    
+        raise HTTPException(status_code=500, detail=f"Product upload failed: {str(e)}")
 
 
 class ConvertImageResponse(BaseModel):
@@ -886,34 +866,64 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
     # the fixed branded message is always shown.
     # ============================================================
     GREETING_WORDS = {
-        "hello", "hi", "hey", "hii", "hiii", "salam", "salaam",
-        "مرحبا", "أهلا", "أهلاً", "اهلا", "اهلاً", "هلا", "هلو",
-        "হ্যালো", "হেলো", "হাই", "নমস্কার", "সালাম"
+        "hello",
+        "hi",
+        "hey",
+        "hii",
+        "hiii",
+        "salam",
+        "salaam",
+        "مرحبا",
+        "أهلا",
+        "أهلاً",
+        "اهلا",
+        "اهلاً",
+        "هلا",
+        "هلو",
+        "হ্যালো",
+        "হেলো",
+        "হাই",
+        "নমস্কার",
+        "সালাম",
     }
     FAREWELL_WORDS = {
-        "bye", "goodbye", "good bye", "see you", "take care",
-        "وداعاً", "وداعا", "مع السلامة", "شكراً", "شكرا",
-        "আলবিদা", "বিদায়", "ধন্যবাদ"
+        "bye",
+        "goodbye",
+        "good bye",
+        "see you",
+        "take care",
+        "وداعاً",
+        "وداعا",
+        "مع السلامة",
+        "شكراً",
+        "شكرا",
+        "আলবিদা",
+        "বিদায়",
+        "ধন্যবাদ",
     }
-    
+
     msg_clean = data.message.strip().lower().rstrip("!.,؟?")
-    
+
     # Detect Arabic script to choose correct message
-    has_arabic = any('\u0600' <= c <= '\u06FF' for c in data.message)
-    
+    has_arabic = any("\u0600" <= c <= "\u06ff" for c in data.message)
+
     # Pure greeting check (message is ONLY a greeting word)
     if msg_clean in GREETING_WORDS:
         fixed_reply = FIXED_WELCOME_AR if has_arabic else FIXED_WELCOME_EN
         u_id = save_message(data.user_id, "user", data.message, db)
         a_id = save_message(data.user_id, "assistant", fixed_reply, db)
-        return ChatResponse(reply=fixed_reply, user_message_id=u_id, assistant_message_id=a_id)
-    
+        return ChatResponse(
+            reply=fixed_reply, user_message_id=u_id, assistant_message_id=a_id
+        )
+
     # Pure farewell check
     if msg_clean in FAREWELL_WORDS:
         fixed_reply = FIXED_GOODBYE_AR if has_arabic else FIXED_GOODBYE_EN
         u_id = save_message(data.user_id, "user", data.message, db)
         a_id = save_message(data.user_id, "assistant", fixed_reply, db)
-        return ChatResponse(reply=fixed_reply, user_message_id=u_id, assistant_message_id=a_id)
+        return ChatResponse(
+            reply=fixed_reply, user_message_id=u_id, assistant_message_id=a_id
+        )
 
     # NORMAL AI FLOW (for all other messages)
     system_prompt = load_system_prompt()
@@ -940,9 +950,11 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
         if msg.get("products"):
             meta_strings = []
             for p in msg["products"]:
-                meta_strings.append(f"[METADATA: Name: {p.get('name')}, ItemCode: {p.get('id')}, Barcode: {p.get('barcode')}]")
+                meta_strings.append(
+                    f"[METADATA: Name: {p.get('name')}, ItemCode: {p.get('id')}, Barcode: {p.get('barcode')}]"
+                )
             content += "\n" + "\n".join(meta_strings)
-            
+
         messages_for_ai.append({"role": msg["role"], "content": content})
     messages_for_ai.append({"role": "user", "content": data.message})
 
@@ -966,23 +978,24 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
             pass  # non-critical — image just won't show in history
 
     user_msg_id = save_message(
-        data.user_id, "user", data.message, db,
-        metadata={"image_url": user_image_for_history} if user_image_for_history else None,
+        data.user_id,
+        "user",
+        data.message,
+        db,
+        metadata=(
+            {"image_url": user_image_for_history} if user_image_for_history else None
+        ),
     )
 
     image_url = None
     products = []
-
 
     # Prepare multimodal content if an image is present
     if data.image_url:
         image_for_ai = normalize_image_for_openai(data.image_url)
 
         user_content = [{"type": "text", "text": data.message}]
-        user_content.append({
-            "type": "image_url",
-            "image_url": {"url": image_for_ai}
-        })
+        user_content.append({"type": "image_url", "image_url": {"url": image_for_ai}})
         # The last message in messages_for_ai is currently the user message
         messages_for_ai[-1]["content"] = user_content
 
@@ -999,7 +1012,9 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
         ai_message = response.choices[0].message
 
         if ai_message.tool_calls:
-            messages_for_ai.append(ai_message)   # append the assistant message with tool calls
+            messages_for_ai.append(
+                ai_message
+            )  # append the assistant message with tool calls
             for tool_call in ai_message.tool_calls:
                 tool_name = tool_call.function.name
                 tool_args = json.loads(tool_call.function.arguments)
@@ -1017,46 +1032,54 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
 
                             if price in ["", "n/a", "na", "none", "null", "0", "0.0"]:
                                 continue
-                            products.append({
-                                "id":          p.get("id", ""),
-                                "name":        p.get("name", ""),
-                                "price":       p.get("price", ""),
-                                "barcode":     p.get("id", ""), # Barcode is stored in 'id' key from tools.py
-                                "description": p.get("description", ""),
-                                "image_url":   p.get("image_url", ""),
-                                "stock":       p.get("available_qty", 0),
-                            })
+                            products.append(
+                                {
+                                    "id": p.get("id", ""),
+                                    "name": p.get("name", ""),
+                                    "price": p.get("price", ""),
+                                    "barcode": p.get(
+                                        "id", ""
+                                    ),  # Barcode is stored in 'id' key from tools.py
+                                    "description": p.get("description", ""),
+                                    "image_url": p.get("image_url", ""),
+                                    "stock": p.get("available_qty", 0),
+                                }
+                            )
                         if products:
                             image_url = products[0]["image_url"]
 
-
-                
-                    
                     # Note: get_product_details results are NOT added to the 'products' list.
                     # They are passed to the AI via 'messages_for_ai' for internal info (price/stock).
                     if tool_name == "get_product_details":
                         if not image_url:
                             image_url = tool_result.get("image_url")
 
-                        interested_product = tool_result.get("item_name") or tool_result.get("name")
+                        interested_product = tool_result.get(
+                            "item_name"
+                        ) or tool_result.get("name")
 
                         if interested_product:
                             save_lead(data.user_id, [{"name": interested_product}])
 
-                messages_for_ai.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": tool_result_str,
-                })
-            continue   # loop again to get the final answer after tools
+                messages_for_ai.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": tool_result_str,
+                    }
+                )
+            continue  # loop again to get the final answer after tools
 
         reply_text = ai_message.content
         break
 
     assistant_msg_id = save_message(
-        data.user_id, "assistant", reply_text, db,
+        data.user_id,
+        "assistant",
+        reply_text,
+        db,
         metadata={
-            "products":  products  if products  else None,
+            "products": products if products else None,
             "image_url": image_url,
         },
     )
@@ -1066,35 +1089,53 @@ def generate_reply(data: ChatRequest, db: Session = Depends(get_db)):
         image_url=image_url,
         products=products if products else None,
         user_message_id=user_msg_id,
-        assistant_message_id=assistant_msg_id
+        assistant_message_id=assistant_msg_id,
     )
+
 
 @app.get("/conversations")
 def get_conversations(db: Session = Depends(get_db)):
     from sqlalchemy import func, and_
+
     # Get first user message for each user_id
-    subq = db.query(
-        ChatHistory.user_id,
-        func.min(ChatHistory.created_at).label('first_time')
-    ).filter(ChatHistory.role == 'user').group_by(ChatHistory.user_id).subquery()
-    first_msgs = db.query(ChatHistory).join(
-        subq,
-        and_(ChatHistory.user_id == subq.c.user_id, ChatHistory.created_at == subq.c.first_time)
-    ).all()
-    
+    subq = (
+        db.query(
+            ChatHistory.user_id, func.min(ChatHistory.created_at).label("first_time")
+        )
+        .filter(ChatHistory.role == "user")
+        .group_by(ChatHistory.user_id)
+        .subquery()
+    )
+    first_msgs = (
+        db.query(ChatHistory)
+        .join(
+            subq,
+            and_(
+                ChatHistory.user_id == subq.c.user_id,
+                ChatHistory.created_at == subq.c.first_time,
+            ),
+        )
+        .all()
+    )
+
     # Get latest timestamp per user_id
-    latest_times = db.query(
-        ChatHistory.user_id,
-        func.max(ChatHistory.created_at).label('last_time')
-    ).group_by(ChatHistory.user_id).all()
+    latest_times = (
+        db.query(
+            ChatHistory.user_id, func.max(ChatHistory.created_at).label("last_time")
+        )
+        .group_by(ChatHistory.user_id)
+        .all()
+    )
     time_map = {t.user_id: t.last_time for t in latest_times}
-    
+
     conversations = []
     for msg in first_msgs:
-        conversations.append({
-            "user_id": msg.user_id,
-            "title": msg.content[:50],
-            "last_updated": time_map.get(msg.user_id, msg.created_at).isoformat()
-        })
-    conversations.sort(key=lambda x: x['last_updated'], reverse=True)
+        conversations.append(
+            {
+                "user_id": msg.user_id,
+                "title": msg.content[:50],
+                "last_updated": time_map.get(msg.user_id, msg.created_at).isoformat(),
+            }
+        )
+    conversations.sort(key=lambda x: x["last_updated"], reverse=True)
     return conversations
