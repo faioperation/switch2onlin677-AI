@@ -1,10 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, UploadFile, File, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel
 from openai import OpenAI
 from sqlalchemy.orm import Session
 import json
+import logging
 import os
 import random
 import string
@@ -13,10 +16,12 @@ from dotenv import load_dotenv
 import requests
 from zoneinfo import ZoneInfo
 
+from core.exceptions import AppError
+
 
 from database import engine, get_db, Base, SessionLocal
 from models import ChatHistory, Product, ProductSearchIndex
-from product_upload_service import (
+from services.upload import (
     ALL_PRODUCT_UPLOAD_COLUMNS,
     REQUIRED_PRODUCT_UPLOAD_COLUMNS,
     upsert_product_upload,
@@ -24,11 +29,13 @@ from product_upload_service import (
 
 
 from tools import search_products, get_product_details, check_availability
-from sync_service import sync_sap_data
+from services.sync import sync_sap_data
 from routers.products import router as products_router
 from routers.categories import router as categories_router
 from routers.brands import router as brands_router
 from routers.subcategories import router as subcategories_router
+from routers.recommendations import router as recommendations_router
+from routers.bundles import router as bundles_router
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from pathlib import Path
@@ -81,11 +88,87 @@ def safe_create_all():
 
 safe_create_all()
 
+_log = logging.getLogger(__name__)
+
 app = FastAPI()
+
+# ── Global exception handlers ──────────────────────────────────────────────────
+# All AppError subclasses (NotFoundError, ConflictError, AppValidationError, …)
+# are converted to {"success": false, "error": "<message>"} with the correct
+# HTTP status code.  No router needs a try/except for these any more.
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    """Handle all typed application errors."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": exc.message},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Normalise FastAPI/Starlette HTTPExceptions to the standard envelope.
+
+    Existing routers put either a plain string or a dict in exc.detail.
+    Both are handled: dicts are passed through, strings are wrapped.
+    """
+    detail = exc.detail
+    if isinstance(detail, dict):
+        # Already structured — pass through as-is
+        return JSONResponse(status_code=exc.status_code, content=detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": str(detail)},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Convert Pydantic/FastAPI 422 validation errors to the standard envelope.
+
+    Shows the first field error with its location so the caller knows exactly
+    which parameter is wrong — without leaking a raw Pydantic stacktrace.
+    """
+    errors = exc.errors()
+    if errors:
+        first  = errors[0]
+        loc    = " → ".join(str(p) for p in first.get("loc", []) if p != "body")
+        msg    = first.get("msg", "Validation error")
+        detail = f"{loc}: {msg}" if loc else msg
+    else:
+        detail = "Request validation failed."
+    return JSONResponse(
+        status_code=422,
+        content={"success": False, "error": detail},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all: log the full traceback but return a safe generic message.
+
+    This prevents internal stack traces / DB details from leaking to the caller.
+    """
+    _log.error(
+        "Unhandled exception on %s %s: %s",
+        request.method, request.url.path, exc,
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "error": "An unexpected error occurred. Please try again later."},
+    )
+
+
+# ── Routers ────────────────────────────────────────────────────────────────────
+
 app.include_router(products_router, prefix="", tags=["Products"])
 app.include_router(categories_router, prefix="", tags=["Categories"])
 app.include_router(brands_router, prefix="", tags=["Brands"])
 app.include_router(subcategories_router, prefix="", tags=["Subcategories"])
+app.include_router(recommendations_router)
+app.include_router(bundles_router)
 
 # Initialize Scheduler
 IRAQ_TIMEZONE = ZoneInfo("Asia/Baghdad")
@@ -798,7 +881,7 @@ async def upload_products(
                 if dry_run
                 else "Products uploaded successfully."
             ),
-            "result": result,
+            "result": result.model_dump(),
         }
 
     except ValueError as e:
