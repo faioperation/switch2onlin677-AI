@@ -17,6 +17,17 @@ from sqlalchemy.types import UserDefinedType
 
 from database import Base
 
+# pgvector — must be imported before any model that uses Vector(n)
+try:
+    from pgvector.sqlalchemy import Vector
+except ModuleNotFoundError:
+    class Vector(UserDefinedType):
+        def __init__(self, dimensions):
+            self.dimensions = dimensions
+
+        def get_col_spec(self, **kwargs):
+            return f"VECTOR({self.dimensions})"
+
 
 # ── Upload Job ────────────────────────────────────────────────────────────────
 
@@ -349,17 +360,6 @@ class ProductSearchIndex(Base):
 
 
 # ── RAG Knowledge Chunks (requires pgvector C extension) ─────────────────────
-
-try:
-    from pgvector.sqlalchemy import Vector  # noqa: E402
-except ModuleNotFoundError:
-    class Vector(UserDefinedType):
-        def __init__(self, dimensions):
-            self.dimensions = dimensions
-
-        def get_col_spec(self, **kwargs):
-            return f"VECTOR({self.dimensions})"
-
 
 class KnowledgeChunk(Base):
     """Chunked, embedded segments of knowledge-base files.
