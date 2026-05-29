@@ -17,15 +17,13 @@ import requests
 from zoneinfo import ZoneInfo
 
 from core.exceptions import AppError
+from core.logging_config import setup_logging
 
+# Initialise structured logging before any other imports that create loggers
+setup_logging()
 
 from database import engine, get_db, Base, SessionLocal
-from models import ChatHistory, Product, ProductSearchIndex
-from services.upload import (
-    ALL_PRODUCT_UPLOAD_COLUMNS,
-    REQUIRED_PRODUCT_UPLOAD_COLUMNS,
-    upsert_product_upload,
-)
+from models import ChatHistory, SapSyncAuditLog
 
 
 from tools import search_products, get_product_details, check_availability
@@ -36,6 +34,8 @@ from routers.brands import router as brands_router
 from routers.subcategories import router as subcategories_router
 from routers.recommendations import router as recommendations_router
 from routers.bundles import router as bundles_router
+from routers.uploads import router as uploads_router
+from routers.ai_recommendations import router as ai_recommendations_router
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from pathlib import Path
@@ -163,10 +163,12 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 
-app.include_router(products_router, prefix="", tags=["Products"])
-app.include_router(categories_router, prefix="", tags=["Categories"])
-app.include_router(brands_router, prefix="", tags=["Brands"])
-app.include_router(subcategories_router, prefix="", tags=["Subcategories"])
+app.include_router(products_router,          prefix="", tags=["Products"])
+app.include_router(uploads_router,           prefix="", tags=["Product Uploads"])
+app.include_router(ai_recommendations_router,prefix="", tags=["AI Recommendations"])
+app.include_router(categories_router,        prefix="", tags=["Categories"])
+app.include_router(brands_router,            prefix="", tags=["Brands"])
+app.include_router(subcategories_router,     prefix="", tags=["Subcategories"])
 app.include_router(recommendations_router)
 app.include_router(bundles_router)
 
@@ -182,24 +184,51 @@ async def start_scheduler():
     if scheduler.running:
         return
 
-    # Run SAP sync every day at 6:00 AM and 6:00 PM Iraq time
+    from services.embedding import embed_new_products
+
+    # ── SAP price/stock sync — 06:00 and 18:00 Iraq time ─────────────────────
     scheduler.add_job(
         sync_sap_data,
-        trigger="cron",
-        hour="6,18",
-        minute=0,
-        timezone=IRAQ_TIMEZONE,
-        id="sap_data_sync_twice_daily",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
+        trigger      = "cron",
+        hour         = "6,18",
+        minute       = 0,
+        timezone     = IRAQ_TIMEZONE,
+        id           = "sap_data_sync_twice_daily",
+        replace_existing = True,
+        max_instances    = 1,
+        coalesce         = True,
+    )
+
+    # ── Product embedding pipeline — daily at 03:00 Iraq time ─────────────────
+    # Processes only un-embedded products (embedding IS NULL).
+    # After the first full run (all products embedded) subsequent runs are
+    # near-instant (0 pending products).
+    scheduler.add_job(
+        embed_new_products,
+        trigger      = "cron",
+        hour         = 3,
+        minute       = 0,
+        timezone     = IRAQ_TIMEZONE,
+        id           = "product_embedding_daily",
+        replace_existing = True,
+        max_instances    = 1,
+        coalesce         = True,
+        kwargs           = {"limit": 0, "force_all": False},
     )
 
     scheduler.start()
 
+    _log.info(
+        "scheduler_started",
+        extra={
+            "sap_sync":  "daily 06:00 + 18:00 IQ",
+            "embedding": "daily 03:00 IQ",
+        },
+    )
     print(
-        "Background Scheduler Started: SAP Sync scheduled daily at "
-        "06:00 and 18:00 Iraq time."
+        "Background Scheduler Started: "
+        "SAP Sync at 06:00 + 18:00 IQ | "
+        "Embedding pipeline at 03:00 IQ"
     )
 
 
@@ -210,8 +239,86 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint for production monitoring."""
-    return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
+    """
+    Liveness probe — returns 200 immediately if the process is alive.
+    Load balancers and container orchestrators use this to decide whether
+    to restart the container.  It does NOT check external dependencies.
+    """
+    return {
+        "status":    "healthy",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+
+
+@app.get("/ready")
+def readiness_check():
+    """
+    Readiness probe — checks that all external dependencies are reachable
+    before allowing traffic to this instance.
+
+    Checks
+    ------
+    1. PostgreSQL connectivity (cheap SELECT 1)
+    2. SAP sync recency (last sync within 25 hours — 12h schedule + 1h grace)
+
+    Returns 200 when ready, 503 when not.
+    """
+    import sqlalchemy
+    checks: dict[str, dict] = {}
+    overall_ok = True
+
+    # ── 1. Database ───────────────────────────────────────────────────────────
+    db = SessionLocal()
+    try:
+        db.execute(sqlalchemy.text("SELECT 1"))
+        checks["database"] = {"status": "ok"}
+    except Exception as exc:
+        checks["database"] = {"status": "error", "detail": str(exc)}
+        overall_ok = False
+    finally:
+        db.close()
+
+    # ── 2. SAP sync recency ───────────────────────────────────────────────────
+    db2 = SessionLocal()
+    try:
+        latest = (
+            db2.query(SapSyncAuditLog)
+            .order_by(SapSyncAuditLog.synced_at.desc())
+            .first()
+        )
+        if latest is None:
+            checks["sap_sync"] = {"status": "warning", "detail": "No sync run recorded yet"}
+        else:
+            age_hours = (
+                datetime.datetime.now() - latest.synced_at
+            ).total_seconds() / 3600
+            if age_hours > 25:
+                checks["sap_sync"] = {
+                    "status":     "warning",
+                    "last_sync":  latest.synced_at.isoformat(),
+                    "age_hours":  round(age_hours, 1),
+                    "detail":     "Last SAP sync is older than 25 hours",
+                }
+            else:
+                checks["sap_sync"] = {
+                    "status":    latest.status,
+                    "last_sync": latest.synced_at.isoformat(),
+                    "age_hours": round(age_hours, 1),
+                }
+    except Exception as exc:
+        checks["sap_sync"] = {"status": "error", "detail": str(exc)}
+    finally:
+        db2.close()
+
+    status_code = 200 if overall_ok else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "ready":     overall_ok,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "checks":    checks,
+        },
+    )
 
 
 @app.post("/sap/sync-now")
@@ -832,64 +939,9 @@ def delete_knowledge_file(knowledge_id: str):
     return {"success": True, "deleted": knowledge_id}
 
 
-@app.get("/products/upload-template")
-def get_product_upload_template():
-    return {
-        "required_columns": REQUIRED_PRODUCT_UPLOAD_COLUMNS,
-        "all_supported_columns": ALL_PRODUCT_UPLOAD_COLUMNS,
-        "accepted_file_types": [".xlsx", ".csv"],
-        "notes": [
-            "First sheet will be used for Excel files.",
-            "item_code and item_name are required.",
-            "barcode is optional. If barcode is empty, item_code will be used as product ID.",
-            "concerns and tags should be comma separated.",
-            "Existing products will be updated when barcode/product ID already exists.",
-        ],
-    }
-
-
-@app.post("/products/upload")
-async def upload_products(
-    file: UploadFile = File(...),
-    dry_run: bool = False,
-    db: Session = Depends(get_db),
-):
-    filename = file.filename or ""
-
-    if not (filename.lower().endswith(".xlsx") or filename.lower().endswith(".csv")):
-        raise HTTPException(
-            status_code=400, detail="Only .xlsx and .csv files are supported."
-        )
-
-    content = await file.read()
-
-    if not content:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-
-    try:
-        result = upsert_product_upload(
-            db=db,
-            filename=filename,
-            content=content,
-            dry_run=dry_run,
-        )
-
-        return {
-            "success": True,
-            "message": (
-                "Product upload checked successfully."
-                if dry_run
-                else "Products uploaded successfully."
-            ),
-            "result": result.model_dump(),
-        }
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Product upload failed: {str(e)}")
+# NOTE: POST /products/upload, GET /products/upload-template, and
+# GET/POST /products/uploads/* are handled by routers/uploads.py
+# which is registered above as uploads_router.
 
 
 class ConvertImageResponse(BaseModel):

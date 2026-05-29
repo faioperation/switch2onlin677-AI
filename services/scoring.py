@@ -6,44 +6,28 @@ Recommendation scoring pipeline.
 Architecture
 ------------
 Scorer (Protocol)
-  ├── RuleBasedScorer   — current production scorer.
-  │                       Trusts DB ordering (recommendation_priority +
-  │                       recommendation_score_override already applied by
-  │                       the query). Adds score_reason = "editorial".
-  │
-  └── PersonalizationScorer  — placeholder for Phase 3 ML scorer.
-                               Falls back to RuleBasedScorer until the
-                               user embedding store is connected.
+  ├── RuleBasedScorer       — trusts DB ordering; adds score_reason="editorial"
+  ├── PersonalizationScorer — diversity + session-history re-ranking
+  └── HybridAIScorer        — blends editorial score with ai_score (vector-derived)
+                              Active when RECOMMENDATION_SCORER=hybrid_ai
 
 ScoringPipeline
-  Wraps any Scorer. Called in each router endpoint after the service
-  function returns its result dict. Adds scoring metadata to the envelope
-  and (in future) re-ranks the product list.
+  Wraps any Scorer.  Called by every recommendation router endpoint.
+  Adds scoring metadata to the response envelope.
 
 get_active_scorer()
-  Factory that reads RECOMMENDATION_SCORER env var:
-    "rule_based"        → RuleBasedScorer  (default)
-    "personalization"   → PersonalizationScorer
+  Reads RECOMMENDATION_SCORER env var:
+    "rule_based"      → RuleBasedScorer  (default, safe for zero-embedding state)
+    "personalization" → PersonalizationScorer
+    "hybrid_ai"       → HybridAIScorer   (activate after embedding coverage > 50%)
 
-Integration
------------
-Every recommendation router endpoint follows this pattern:
+HybridAIScorer
+  Re-ranks results by blending editorial priority with the ai_score field
+  (pre-computed by the embedding pipeline: a weighted mix of semantic
+  similarity, popularity, stock, and freshness signals).
 
-    context = RecommendationContext.from_params(user_id=user_id, ...)
-    result  = get_best_selling(db, ...)           # service call
-    return  ScoringPipeline().apply(result, context)   # scoring + metadata
-
-The service layer (services/recommendation.py) is untouched.
-The scorer is a post-processing step on the already-formatted response.
-
-Evolution path
---------------
-Phase 1 (now)   RuleBasedScorer — no-op on product order; adds metadata.
-Phase 2         PersonalizationScorer reorders products using:
-                  - user preference vector (skin_type, price_tier, brand)
-                  - session history (viewed/cart barcodes for diversity)
-Phase 3         Hybrid: editorial priority × ML score (linear blend).
-Phase 4         A/B testing: ScoringPipeline picks scorer by user_id hash.
+  final = α × ai_score + (1-α) × editorial_score
+  Default α = 0.55 (SCORE_ALPHA env var).
 """
 
 from __future__ import annotations
@@ -55,6 +39,9 @@ from typing import Protocol, runtime_checkable
 from core.recommendation_context import RecommendationContext
 
 logger = logging.getLogger(__name__)
+
+# Alpha for hybrid blending: ai_score weight (1-alpha = editorial weight)
+_SCORE_ALPHA = float(os.getenv("SCORE_ALPHA", "0.55"))
 
 
 # ── Scorer Protocol ───────────────────────────────────────────────────────────
@@ -169,6 +156,65 @@ class PersonalizationScorer:
         return products
 
 
+# ── HybridAIScorer ────────────────────────────────────────────────────────────
+
+class HybridAIScorer:
+    """
+    Blends the DB-stored ai_score (computed by the embedding pipeline from
+    semantic signals) with the editorial ordering already applied by the query.
+
+    When activated (RECOMMENDATION_SCORER=hybrid_ai) this scorer:
+      1. Reads each product's ai_score field (set by embedding pipeline).
+      2. Computes an editorial_score from recommendation_priority /
+         recommendation_score_override (if those fields are in the dict).
+      3. Blends: final = SCORE_ALPHA × ai_score + (1-SCORE_ALPHA) × editorial
+      4. Re-sorts the product list by final score descending.
+      5. Applies session diversity (same as PersonalizationScorer).
+
+    Activate once embedding coverage exceeds 50% of the catalog.
+    """
+
+    name = "hybrid_ai"
+
+    def score(
+        self,
+        products: list[dict],
+        context:  RecommendationContext,
+    ) -> list[dict]:
+        alpha    = _SCORE_ALPHA
+        beta     = 1.0 - alpha
+
+        # ── Session diversity ─────────────────────────────────────────────────
+        if context.viewed_barcodes:
+            seen   = set(context.viewed_barcodes)
+            unseen = [p for p in products if p.get("id") not in seen]
+            seen_p = [p for p in products if p.get("id") in seen]
+            products = unseen + seen_p
+
+        if context.cart_barcodes:
+            in_cart  = set(context.cart_barcodes)
+            products = [p for p in products if p.get("id") not in in_cart]
+
+        # ── Compute blended score ─────────────────────────────────────────────
+        for p in products:
+            ai_s = float(p.get("ai_score") or 0.0)
+
+            # Editorial score from priority (lower = better → invert to 0-1)
+            priority  = p.get("recommendation_priority") or 9999
+            s_priority = 1.0 - (min(priority, 9999) / 9999)
+            override  = float(p.get("recommendation_score_override") or 0)
+            s_override = min(override, 999) / 999
+            ed_s = 0.6 * s_priority + 0.4 * s_override
+
+            blended = round(alpha * ai_s + beta * ed_s, 6)
+            p["_hybrid_score"] = blended
+            p["_score_reason"] = "hybrid_ai"
+
+        # Re-rank by blended score
+        products.sort(key=lambda p: p.get("_hybrid_score", 0), reverse=True)
+        return products
+
+
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 def get_active_scorer() -> Scorer:
@@ -177,12 +223,15 @@ def get_active_scorer() -> Scorer:
 
     Values
     ------
-    rule_based      (default) — editorial priority from DB
-    personalization           — diversity + future ML re-ranking
+    rule_based      (default) — editorial priority from DB (safe at 0% coverage)
+    personalization           — diversity + session-history re-ranking
+    hybrid_ai                 — blend ai_score + editorial (≥50% coverage recommended)
     """
     scorer_name = os.getenv("RECOMMENDATION_SCORER", "rule_based").strip().lower()
     if scorer_name == "personalization":
         return PersonalizationScorer()
+    if scorer_name == "hybrid_ai":
+        return HybridAIScorer()
     if scorer_name != "rule_based":
         logger.warning(
             "Unknown RECOMMENDATION_SCORER=%r — falling back to rule_based.",
@@ -237,6 +286,8 @@ class ScoringPipeline:
         score_reasons = [
             p.pop("_score_reason", None) for p in scored_products
         ]
+        for p in scored_products:
+            p.pop("_hybrid_score", None)   # strip HybridAIScorer internal key
 
         # ── Build scoring metadata block ──────────────────────────────────
         scoring_meta: dict = {

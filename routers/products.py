@@ -1,7 +1,7 @@
 """
 routers/products.py
 ===================
-Product Management API — 9 endpoints.
+Product Management API — 11 endpoints.
 
   GET    /products/filters           dropdown data for frontend filter menus
   GET    /products                   paginated list with search + filter + sort
@@ -156,15 +156,51 @@ def update_product(
 
 @router.delete("/products/{barcode}")
 def delete_product(barcode: str, repo: ProductRepository = Depends(get_repo)):
-    """Hard delete a product and its search index entry.
-    Raises NotFoundError (→ 404) if barcode does not exist.
+    """
+    Soft-delete a product (sets deleted_at timestamp).
+
+    The product is excluded from all public-facing queries but its row is
+    retained in the DB.  Restore with POST /products/{barcode}/restore.
+    Raises NotFoundError (→ 404) if barcode does not exist or is already deleted.
     """
     result = repo.delete(barcode)
     return {
-        "success":   True,
-        "message":   "Product deleted successfully",
-        "barcode":   result["barcode"],
-        "item_name": result["item_name"],
+        "success":    True,
+        "message":    "Product soft-deleted. Use POST /products/{barcode}/restore to undo.",
+        "barcode":    result["barcode"],
+        "item_name":  result["item_name"],
+        "deleted_at": result["deleted_at"],
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# POST /products/{barcode}/restore
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/products/{barcode}/restore")
+def restore_product(
+    barcode: str,
+    db:      Session              = Depends(get_db),
+    repo:    ProductRepository    = Depends(get_repo),
+):
+    """
+    Restore a soft-deleted product by clearing its deleted_at timestamp.
+
+    Raises NotFoundError (→ 404)  if the product row does not exist.
+    Raises AppValidationError (→ 422) if the product is not currently deleted.
+    """
+    result = repo.restore(barcode)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("DB commit failed for POST /products/%s/restore: %s", barcode, exc, exc_info=True)
+        raise ServiceError("Restore failed due to a database error. Please try again.")
+
+    return {
+        "success": True,
+        "message": "Product restored successfully.",
+        "data":    result,
     }
 
 

@@ -196,17 +196,17 @@ class ProductRepository:
 
     # ── Public methods ────────────────────────────────────────────────────────
 
-    def get_by_barcode(self, barcode: str) -> dict | None:
+    def get_by_barcode(self, barcode: str, include_deleted: bool = False) -> dict | None:
         """
         Return full product detail dict for a single barcode, or None.
         Brand / Category / Subcategory are fetched via the injected session
         (no new session opened).
+        Soft-deleted products are excluded unless include_deleted=True.
         """
-        product = (
-            self.db.query(Product)
-            .filter(Product.barcode == barcode)
-            .first()
-        )
+        q = self.db.query(Product).filter(Product.barcode == barcode)
+        if not include_deleted:
+            q = q.filter(Product.deleted_at.is_(None))
+        product = q.first()
         if not product:
             return None
 
@@ -272,6 +272,7 @@ class ProductRepository:
             .join(Brand,       Brand.id       == Product.brand_id,       isouter=True)
             .join(Category,    Category.id    == Product.category_id,    isouter=True)
             .join(Subcategory, Subcategory.id == Product.subcategory_id, isouter=True)
+            .filter(Product.deleted_at.is_(None))   # exclude soft-deleted products
         )
 
         # ── Full-text search via ProductSearchIndex ───────────────────────────
@@ -346,7 +347,7 @@ class ProductRepository:
             },
         }
 
-    def update(self, barcode: str, payload: dict) -> dict:
+    def update(self, barcode: str, payload: dict, include_deleted: bool = False) -> dict:
         """
         Partial update for a product.
 
@@ -360,7 +361,10 @@ class ProductRepository:
         -------
         {"product": dict, "warnings": [str]}
         """
-        product = self.db.query(Product).filter(Product.barcode == barcode).first()
+        q = self.db.query(Product).filter(Product.barcode == barcode)
+        if not include_deleted:
+            q = q.filter(Product.deleted_at.is_(None))
+        product = q.first()
         if not product:
             raise NotFoundError(f"Product '{barcode}' not found.")
 
@@ -543,28 +547,65 @@ class ProductRepository:
 
     def delete(self, barcode: str) -> dict:
         """
-        Delete a product and its search index entry.
+        Soft-delete a product by setting deleted_at to now().
 
-        Raises LookupError if not found.
-        Returns {"barcode": str, "item_name": str | None}.
+        The product row and its ProductSearchIndex entry are NOT removed from
+        the DB; they are simply excluded from all public-facing queries.
+        Use restore() to reverse a soft delete.
+
+        Raises NotFoundError (404) if the product is not found or is already deleted.
+        Returns {"barcode": str, "item_name": str | None, "deleted_at": ISO str}.
+        """
+        product = (
+            self.db.query(Product)
+            .filter(Product.barcode == barcode, Product.deleted_at.is_(None))
+            .first()
+        )
+        if not product:
+            raise NotFoundError(
+                f"Product '{barcode}' not found or is already deleted."
+            )
+
+        from datetime import datetime
+        product.deleted_at = datetime.now()
+        self.db.flush()
+        self.db.commit()
+
+        return {
+            "barcode":    barcode,
+            "item_name":  product.item_name,
+            "deleted_at": product.deleted_at.isoformat(),
+        }
+
+    def restore(self, barcode: str) -> dict:
+        """
+        Restore a soft-deleted product by clearing its deleted_at timestamp.
+
+        Raises NotFoundError (404) if the product does not exist at all.
+        Raises AppValidationError (422) if the product is not currently deleted.
+        Returns the restored product's full detail dict.
         """
         product = self.db.query(Product).filter(Product.barcode == barcode).first()
         if not product:
             raise NotFoundError(f"Product '{barcode}' not found.")
+        if product.deleted_at is None:
+            raise AppValidationError(
+                f"Product '{barcode}' is not deleted — nothing to restore."
+            )
 
-        item_name = product.item_name
-
-        self.db.query(ProductSearchIndex).filter(
-            ProductSearchIndex.product_id == barcode
-        ).delete(synchronize_session=False)
-
-        self.db.query(Product).filter(
-            Product.barcode == barcode
-        ).delete(synchronize_session=False)
-
+        product.deleted_at = None
+        self.db.flush()
         self.db.commit()
 
-        return {"barcode": barcode, "item_name": item_name}
+        brand_ent, cat_ent, sub_ent = self._lookup_relations(
+            product.brand_id, product.category_id, product.subcategory_id
+        )
+        return self._serialize(
+            product,
+            brand_name       = brand_ent.name if brand_ent else None,
+            category_name    = cat_ent.name   if cat_ent   else None,
+            subcategory_name = sub_ent.name   if sub_ent   else None,
+        )
 
     def get_filter_options(self) -> dict:
         """Return brand / category / subcategory dropdown data for filter menus."""

@@ -18,6 +18,88 @@ from sqlalchemy.types import UserDefinedType
 from database import Base
 
 
+# ── Upload Job ────────────────────────────────────────────────────────────────
+
+class UploadJobStatus(str, enum.Enum):
+    queued     = "queued"
+    processing = "processing"
+    completed  = "completed"
+    failed     = "failed"
+
+
+class UploadJob(Base):
+    """
+    One row per POST /products/upload call.
+
+    Lifecycle: queued → processing → completed | failed
+    Progress is reported via processed_rows updated after every batch commit.
+    error_details stores up to 100 structured row-level errors as JSONB.
+    """
+
+    __tablename__ = "upload_jobs"
+
+    id               = Column(String(36),      primary_key=True)        # UUID4 string
+    filename         = Column(String(500),     nullable=False)
+    status           = Column(String(20),      nullable=False, default="queued")
+    dry_run          = Column(Boolean(),       nullable=False, default=False)
+
+    # Progress tracking — updated after each batch of 500 rows
+    total_rows       = Column(Integer(),       nullable=True)
+    processed_rows   = Column(Integer(),       nullable=False, default=0)
+
+    # Final result counts
+    created_count    = Column(Integer(),       nullable=False, default=0)
+    updated_count    = Column(Integer(),       nullable=False, default=0)
+    skipped_count    = Column(Integer(),       nullable=False, default=0)
+    error_count      = Column(Integer(),       nullable=False, default=0)
+
+    # Per-row error log (capped at 100 entries)
+    error_details    = Column(JSONB,           nullable=True)
+
+    # Top-level failure reason (set on unrecoverable exception)
+    error_message    = Column(Text(),          nullable=True)
+
+    # Timing
+    started_at       = Column(DateTime(),      nullable=True)
+    completed_at     = Column(DateTime(),      nullable=True)
+    execution_seconds= Column(Numeric(10, 2),  nullable=True)
+
+    created_at       = Column(DateTime(),      nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_upload_jobs_status",     "status"),
+        Index("idx_upload_jobs_created_at", "created_at"),
+    )
+
+
+# ── SAP Sync Audit Log ────────────────────────────────────────────────────────
+
+class SapSyncAuditLog(Base):
+    """
+    Immutable record written at the end of every SAP sync run.
+    Enables the /ready endpoint to report last-sync health and supports
+    operations dashboards without digging through log files.
+    """
+
+    __tablename__ = "sap_sync_audit_log"
+
+    id                    = Column(Integer(),      primary_key=True, autoincrement=True)
+    synced_at             = Column(DateTime(),     nullable=False, server_default=func.now())
+    status                = Column(String(20),     nullable=False)   # success | failed | partial
+    items_received        = Column(Integer(),      nullable=False, default=0)
+    items_updated         = Column(Integer(),      nullable=False, default=0)
+    items_not_found       = Column(Integer(),      nullable=False, default=0)
+    items_skipped         = Column(Integer(),      nullable=False, default=0)
+    items_price_protected = Column(Integer(),      nullable=False, default=0)
+    duration_seconds      = Column(Numeric(10, 2), nullable=True)
+    error_message         = Column(Text(),         nullable=True)
+
+    __table_args__ = (
+        Index("idx_sap_sync_audit_synced_at", "synced_at"),
+        Index("idx_sap_sync_audit_status",    "status"),
+    )
+
+
 # ── Enums ─────────────────────────────────────────────────────────────────────
 
 class PriceTier(str, enum.Enum):
@@ -156,6 +238,23 @@ class Product(Base):
 
     # ── SAP Sync Tracking ─────────────────────────────────────────────────────
     last_synced_sap = Column(DateTime, nullable=True)
+
+    # ── Price Source Control ───────────────────────────────────────────────────
+    price_source_override = Column(Boolean, nullable=False, default=False)
+
+    # ── Soft Delete ───────────────────────────────────────────────────────────
+    deleted_at = Column(DateTime, nullable=True)
+
+    # ── AI / Vector Embedding ─────────────────────────────────────────────────
+    # Stored as pgvector VECTOR(1536) — raw SQL in migration, Python type below.
+    # NULL until the background embedding pipeline runs for this product.
+    embedding            = Column(Vector(1536), nullable=True)
+    embedding_text       = Column(Text, nullable=True)   # text used to generate embedding
+    embedding_updated_at = Column(DateTime, nullable=True)
+
+    # Cached composite AI score (0.0–1.0) updated by the scoring pipeline.
+    # Used as a tiebreaker in recommendation queries.
+    ai_score = Column(Numeric(8, 6), nullable=True, default=0.0)
 
     # ── Timestamps ────────────────────────────────────────────────────────────
     created_at = Column(DateTime, server_default=func.now())
@@ -375,6 +474,78 @@ class BundleItem(Base):
         Index("idx_bundle_items_bundle_barcode", "bundle_id", "barcode", unique=True),
         # Reverse lookup: "which bundles contain this product?"
         Index("idx_bundle_items_barcode", "barcode"),
+    )
+
+
+# ── Behavioral Feedback Loop ─────────────────────────────────────────────────
+
+class ProductEvent(Base):
+    """
+    Append-only behavioral event stream.
+
+    One row per user interaction with a product.  The AI scoring pipeline
+    reads this table to update ai_score and user preference embeddings.
+
+    event_type values
+    -----------------
+    view                  — product detail page / card expanded
+    click                 — order link tapped / add-to-cart
+    purchase              — order confirmed (from order webhook)
+    recommendation_accepted — user positively reacted to a recommendation
+    recommendation_rejected — user dismissed / skipped a recommendation
+
+    source values
+    -------------
+    chatbot | recommendation_api | frontend | search
+    """
+
+    __tablename__ = "product_events"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(String(255), nullable=True,  index=True)
+    session_id  = Column(String(255), nullable=True,  index=True)
+    barcode     = Column(String(100), nullable=False, index=True)
+    event_type  = Column(String(50),  nullable=False)
+    source      = Column(String(50),  nullable=True)
+    position    = Column(Integer,     nullable=True)  # rank in recommendation list
+    metadata    = Column(JSONB,       nullable=True)  # query, rec_type, ab_group, etc.
+    created_at  = Column(DateTime,    server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_product_events_user_barcode",  "user_id",  "barcode",     "created_at"),
+        Index("idx_product_events_barcode_type",  "barcode",  "event_type",  "created_at"),
+    )
+
+
+# ── User Preference Profile ───────────────────────────────────────────────────
+
+class UserPreferenceProfile(Base):
+    """
+    One row per user_id.  Updated asynchronously after each purchase/click event.
+
+    embedding — mean pooled vector of all products the user positively
+                interacted with.  Used for personalised recommendation re-ranking.
+
+    preferred_categories / brands / price_tiers / skin_types — frequency maps
+    (JSON dict: {name: count}).  Used for fast rule-based filtering without
+    a vector similarity lookup.
+
+    Example preferred_categories: {"Skincare": 12, "Fragrance": 4}
+    """
+
+    __tablename__ = "user_preference_profiles"
+
+    user_id               = Column(String(255), primary_key=True)
+    embedding             = Column(Vector(1536),  nullable=True)
+    preferred_categories  = Column(JSONB, nullable=False, default=dict)
+    preferred_brands      = Column(JSONB, nullable=False, default=dict)
+    preferred_price_tiers = Column(JSONB, nullable=False, default=dict)
+    preferred_skin_types  = Column(JSONB, nullable=False, default=dict)
+    total_events          = Column(Integer, nullable=False, default=0)
+    last_updated          = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_user_prefs_last_updated", "last_updated"),
     )
 
 
