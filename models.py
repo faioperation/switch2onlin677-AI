@@ -508,7 +508,7 @@ class ProductEvent(Base):
     event_type  = Column(String(50),  nullable=False)
     source      = Column(String(50),  nullable=True)
     position    = Column(Integer,     nullable=True)  # rank in recommendation list
-    metadata    = Column(JSONB,       nullable=True)  # query, rec_type, ab_group, etc.
+    event_metadata = Column("metadata", JSONB, nullable=True)  # query, rec_type, ab_group, etc.
     created_at  = Column(DateTime,    server_default=func.now(), nullable=False)
 
     __table_args__ = (

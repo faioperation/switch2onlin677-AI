@@ -386,7 +386,7 @@ def log_product_event(
         event_type = body.event_type,
         source     = body.source,
         position   = body.position,
-        metadata   = body.metadata,
+        event_metadata = body.metadata,
     )
     db.add(event)
     try:
