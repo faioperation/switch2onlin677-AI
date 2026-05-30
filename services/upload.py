@@ -516,6 +516,10 @@ def process_upload_job(job_id: str, filename: str, content: bytes, dry_run: bool
             row_number = int(index) + 2
             raw = _row_to_raw(row, col_map)
 
+            # Rows without a barcode (blank/header rows in Excel) are silently skipped.
+            if not _clean(raw.get("barcode")):
+                continue
+
             # Normalise entity names — guard against NaN / unexpected types
             try:
                 raw["brand_name"]       = normalizer.resolve_brand(raw.get("brand_name"))
@@ -526,11 +530,6 @@ def process_upload_job(job_id: str, filename: str, content: bytes, dry_run: bool
                     "normalization_error_row_skipped",
                     extra={"row": row_number, "error": str(exc)},
                 )
-                row_errors.append(UploadRowError(
-                    row=row_number,
-                    barcode=_clean(raw.get("barcode")),
-                    error=f"Name normalization failed: {exc}",
-                ))
                 continue
 
             try:
@@ -617,13 +616,13 @@ def process_upload_job(job_id: str, filename: str, content: bytes, dry_run: bool
         logger.info(
             "upload_job_completed",
             extra={
-                "job_id":   job_id,
-                "created":  created_count,
-                "updated":  updated_count,
-                "skipped":  skipped_count,
-                "errors":   len(row_errors),
-                "duration": duration,
-                "dry_run":  dry_run,
+                "job_id":        job_id,
+                "created_count": created_count,
+                "updated_count": updated_count,
+                "skipped_count": skipped_count,
+                "error_count":   len(row_errors),
+                "duration":      duration,
+                "dry_run":       dry_run,
             },
         )
 
@@ -773,9 +772,18 @@ def _apply_fields(
     if qty_val   is not None: product.available_qty = qty_val
 
     # Classification
-    if data.price_tier     is not None: product.price_tier     = data.price_tier.value
+    if data.price_tier is not None:
+        # Normalize to DB enum values regardless of how Pydantic stored the member.
+        # str(PriceTierEnum.mid) can return 'mid' (name) or 'Mid' (value) depending on
+        # Python/Pydantic version, so we normalize via lookup table.
+        _TIER = {"budget": "Budget", "mid": "Mid", "premium": "Premium", "luxury": "Luxury"}
+        raw_tier = getattr(data.price_tier, "value", str(data.price_tier))
+        product.price_tier = _TIER.get(str(raw_tier).lower())
     if data.brand_family   is not None: product.brand_family   = data.brand_family
-    if data.product_status is not None: product.product_status = data.product_status.value
+    if data.product_status is not None:
+        _STATUS = {"active": "active", "inactive": "inactive", "draft": "draft"}
+        raw_status = getattr(data.product_status, "value", str(data.product_status))
+        product.product_status = _STATUS.get(str(raw_status).lower(), "active")
 
     # Recommendation flags — only write when cell had a value
     if data.is_best_selling               is not None:
@@ -876,16 +884,15 @@ def upsert_product_upload(
     for index, row in df.iterrows():
         row_number = int(index) + 2
         raw = _row_to_raw(row, col_map)
+
+        if not _clean(raw.get("barcode")):
+            continue
+
         try:
             raw["brand_name"]       = normalizer.resolve_brand(raw.get("brand_name"))
             raw["category_name"]    = normalizer.resolve_category(raw.get("category_name"))
             raw["subcategory_name"] = normalizer.resolve_subcategory(raw.get("subcategory_name"))
         except Exception as exc:
-            row_errors.append(UploadRowError(
-                row=row_number,
-                barcode=_clean(raw.get("barcode")),
-                error=f"Name normalization failed: {exc}",
-            ))
             continue
 
         try:
