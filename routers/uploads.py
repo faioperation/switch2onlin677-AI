@@ -134,8 +134,8 @@ def get_upload_template():
             "all_supported_columns":ALL_PRODUCT_UPLOAD_COLUMNS,
             "accepted_file_types":  [".xlsx", ".csv"],
             "limits": {
-                "max_file_size_mb":  10,
-                "max_rows":          10_000,
+                "max_file_size_mb":  100,
+                "max_rows":          100_000,
             },
             "notes": [
                 "barcode is the only required column.",

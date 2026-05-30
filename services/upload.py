@@ -71,8 +71,8 @@ from services.normalization import get_normalizer
 logger = logging.getLogger(__name__)
 
 # ── Upload limits ─────────────────────────────────────────────────────────────
-MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024   # 10 MB
-MAX_UPLOAD_ROWS:  int = 10_000
+MAX_UPLOAD_BYTES: int = 100 * 1024 * 1024  # 100 MB
+MAX_UPLOAD_ROWS:  int = 100_000
 BATCH_SIZE:       int = 500                 # rows per DB commit cycle
 
 # Accepted MIME types — browsers and OS differ, so we accept a broad set
