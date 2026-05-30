@@ -65,13 +65,29 @@ _SORT_ATTR_MAP = {
 }
 
 UPDATABLE_FIELDS = {
-    "item_name", "description", "image_url",
+    # Identity / display
+    "item_name", "description", "image_url", "sap_product_id",
+    # Relations
     "brand_id", "category_id", "subcategory_id",
+    # AI / Search
     "skin_type", "concerns", "tags",
+    # Pricing (SAP owns, but allow manual override)
     "price", "available_qty",
-    "is_best_selling", "best_selling_scope", "sales_rank",
-    "sap_product_id",
+    # Classification
+    "price_tier", "brand_family", "product_status",
+    # Recommendation flags
+    "is_best_selling", "is_new_arrival", "is_recommended", "is_cod_recommended",
+    "recommendation_priority", "recommendation_score_override",
+    # Legacy
+    "best_selling_scope", "sales_rank",
+    # Bundle
+    "bundle_group", "bundle_discount_percent",
+    # SAP price protection
+    "price_source_override",
 }
+
+_PRICE_TIER_NORM   = {"budget": "Budget", "mid": "Mid", "premium": "Premium", "luxury": "Luxury"}
+_VALID_STATUSES_UP = {"active", "inactive", "draft"}
 
 
 # ── Helpers (module-level, no DB dependency) ──────────────────────────────────
@@ -156,26 +172,58 @@ class ProductRepository:
         """
         price = float(row.price) if row.price is not None else 0.0
 
+        # Enum fields: read back as Python enum member (has .value) or plain string.
+        _tier   = getattr(row, "price_tier",   None)
+        _status = getattr(row, "product_status", None)
+
+        _rscore = getattr(row, "recommendation_score_override", None)
+        _bdp    = getattr(row, "bundle_discount_percent",       None)
+        _delat  = getattr(row, "deleted_at", None)
+
         return {
+            # ── Identity ──────────────────────────────────────────────────────
             "barcode":           row.barcode,
             "item_code":         row.item_code,
             "item_name":         row.item_name,
+            "sap_product_id":    row.sap_product_id,
+            # ── Display ───────────────────────────────────────────────────────
             "description":       row.description,
             "image_url":         row.image_url,
+            # ── AI / Search ───────────────────────────────────────────────────
             "skin_type":         row.skin_type,
             "concerns":          row.concerns or [],
             "tags":              row.tags or [],
+            # ── Pricing ───────────────────────────────────────────────────────
             "price":             price,
             "price_iqd":         _price_iqd(price),
             "available_qty":     row.available_qty or 0,
-            "status":            _stock_status(row.available_qty),
-            "is_best_selling":   bool(row.is_best_selling) if row.is_best_selling is not None else False,
+            "stock_status":      _stock_status(row.available_qty),
+            # ── Classification ────────────────────────────────────────────────
+            "price_tier":        getattr(_tier,   "value", _tier),
+            "brand_family":      getattr(row, "brand_family", None),
+            "product_status":    getattr(_status, "value", _status),
+            # ── Recommendation flags ──────────────────────────────────────────
+            "is_best_selling":   bool(row.is_best_selling)   if row.is_best_selling   is not None else False,
+            "is_new_arrival":    bool(getattr(row, "is_new_arrival",    None)) if getattr(row, "is_new_arrival",    None) is not None else False,
+            "is_recommended":    bool(getattr(row, "is_recommended",    None)) if getattr(row, "is_recommended",    None) is not None else False,
+            "is_cod_recommended":bool(getattr(row, "is_cod_recommended",None)) if getattr(row, "is_cod_recommended",None) is not None else False,
+            "recommendation_priority":       getattr(row, "recommendation_priority", None),
+            "recommendation_score_override": float(_rscore) if _rscore is not None else None,
+            # ── Legacy ────────────────────────────────────────────────────────
             "best_selling_scope":getattr(row, "best_selling_scope", None),
             "sales_rank":        getattr(row, "sales_rank", None),
-            "sap_product_id":    row.sap_product_id,
-            "last_synced_sap":   row.last_synced_sap.isoformat() if row.last_synced_sap else None,
-            "created_at":        row.created_at.isoformat() if row.created_at else None,
-            "updated_at":        row.updated_at.isoformat() if row.updated_at else None,
+            # ── Bundle ────────────────────────────────────────────────────────
+            "bundle_group":            getattr(row, "bundle_group", None),
+            "bundle_discount_percent": float(_bdp) if _bdp is not None else None,
+            # ── SAP ───────────────────────────────────────────────────────────
+            "price_source_override": bool(getattr(row, "price_source_override", False)),
+            "last_synced_sap":       row.last_synced_sap.isoformat() if row.last_synced_sap else None,
+            # ── Soft delete ───────────────────────────────────────────────────
+            "deleted_at":  _delat.isoformat() if _delat else None,
+            # ── Timestamps ───────────────────────────────────────────────────
+            "created_at":  row.created_at.isoformat() if row.created_at else None,
+            "updated_at":  row.updated_at.isoformat() if row.updated_at else None,
+            # ── Relations ─────────────────────────────────────────────────────
             "brand": {
                 "id":   row.brand_id,
                 "name": brand_name,
@@ -254,14 +302,24 @@ class ProductRepository:
 
         # ── Base query with name JOINs (avoids extra per-row DB calls) ────────
         select_cols = [
-            Product.barcode,    Product.item_code,    Product.item_name,
-            Product.description,Product.image_url,    Product.skin_type,
-            Product.concerns,   Product.tags,         Product.price,
+            Product.barcode,       Product.item_code,    Product.item_name,
+            Product.description,   Product.image_url,    Product.skin_type,
+            Product.concerns,      Product.tags,         Product.price,
             Product.available_qty, Product.is_best_selling,
             Product.best_selling_scope, Product.sales_rank,
-            Product.sap_product_id, Product.last_synced_sap,
-            Product.created_at, Product.updated_at,
-            Product.brand_id,   Product.category_id,  Product.subcategory_id,
+            Product.sap_product_id,     Product.last_synced_sap,
+            Product.created_at,    Product.updated_at,
+            Product.brand_id,      Product.category_id,  Product.subcategory_id,
+            # Classification
+            Product.price_tier,    Product.brand_family, Product.product_status,
+            # Recommendation flags
+            Product.is_new_arrival,    Product.is_recommended,
+            Product.is_cod_recommended, Product.recommendation_priority,
+            Product.recommendation_score_override,
+            # Bundle
+            Product.bundle_group,  Product.bundle_discount_percent,
+            # SAP / lifecycle
+            Product.price_source_override, Product.deleted_at,
             Brand.name.label("brand_name"),
             Category.name.label("category_name"),
             Subcategory.name.label("subcategory_name"),
@@ -444,6 +502,47 @@ class ProductRepository:
                     f"Allowed: {', '.join(sorted(VALID_BEST_SELLING_SCOPES))}."
                 )
 
+        if "price_tier" in payload and payload["price_tier"] is not None:
+            raw = str(payload["price_tier"]).strip()
+            normalized = _PRICE_TIER_NORM.get(raw.lower())
+            if normalized is None:
+                raise AppValidationError(
+                    f"price_tier '{raw}' is invalid. Allowed: Budget, Mid, Premium, Luxury."
+                )
+            payload["price_tier"] = normalized
+
+        if "product_status" in payload and payload["product_status"] is not None:
+            raw = str(payload["product_status"]).strip().lower()
+            if raw not in _VALID_STATUSES_UP:
+                raise AppValidationError(
+                    f"product_status '{raw}' is invalid. Allowed: active, inactive, draft."
+                )
+            payload["product_status"] = raw
+
+        if "recommendation_priority" in payload and payload["recommendation_priority"] is not None:
+            try:
+                val = int(payload["recommendation_priority"])
+                if not (0 <= val <= 9999):
+                    raise AppValidationError("recommendation_priority must be between 0 and 9999.")
+            except (ValueError, TypeError):
+                raise AppValidationError("recommendation_priority must be an integer.")
+
+        if "recommendation_score_override" in payload and payload["recommendation_score_override"] is not None:
+            try:
+                val = float(payload["recommendation_score_override"])
+                if not (0 <= val <= 999):
+                    raise AppValidationError("recommendation_score_override must be between 0 and 999.")
+            except (ValueError, TypeError):
+                raise AppValidationError("recommendation_score_override must be a number.")
+
+        if "bundle_discount_percent" in payload and payload["bundle_discount_percent"] is not None:
+            try:
+                val = float(payload["bundle_discount_percent"])
+                if not (0 <= val <= 100):
+                    raise AppValidationError("bundle_discount_percent must be between 0 and 100.")
+            except (ValueError, TypeError):
+                raise AppValidationError("bundle_discount_percent must be a number.")
+
         # ── Apply updates ─────────────────────────────────────────────────────
         # Cascade search index PK rename BEFORE changing the PK on Product
         if updated_barcode:
@@ -519,29 +618,13 @@ class ProductRepository:
         if updated_item_code:
             warnings.append(f"item_code changed '{old_item_code}' → '{product.item_code}'.")
 
-        price = float(product.price) if product.price is not None else 0.0
-
         return {
-            "product": {
-                "barcode":         effective_barcode,
-                "item_code":       product.item_code,
-                "item_name":       product.item_name,
-                "description":     product.description,
-                "image_url":       product.image_url,
-                "skin_type":       product.skin_type,
-                "concerns":        product.concerns or [],
-                "tags":            product.tags or [],
-                "price":           price,
-                "price_iqd":       _price_iqd(price),
-                "available_qty":   product.available_qty,
-                "is_best_selling": bool(product.is_best_selling) if product.is_best_selling is not None else False,
-                "sales_rank":      product.sales_rank,
-                "sap_product_id":  product.sap_product_id,
-                "brand":           {"id": product.brand_id,       "name": new_brand_name},
-                "category":        {"id": product.category_id,    "name": new_cat_name},
-                "subcategory":     {"id": product.subcategory_id, "name": new_sub_name},
-                "updated_at":      product.updated_at.isoformat() if product.updated_at else None,
-            },
+            "product": self._serialize(
+                product,
+                brand_name       = new_brand_name,
+                category_name    = new_cat_name,
+                subcategory_name = new_sub_name,
+            ),
             "warnings": warnings,
         }
 
