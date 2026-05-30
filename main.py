@@ -163,8 +163,8 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 
-app.include_router(products_router,          prefix="", tags=["Products"])
 app.include_router(uploads_router,           prefix="", tags=["Product Uploads"])
+app.include_router(products_router,          prefix="", tags=["Products"])
 app.include_router(ai_recommendations_router,prefix="", tags=["AI Recommendations"])
 app.include_router(categories_router,        prefix="", tags=["Categories"])
 app.include_router(brands_router,            prefix="", tags=["Brands"])
