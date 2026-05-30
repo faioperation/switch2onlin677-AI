@@ -212,7 +212,8 @@ class Product(Base):
 
     # ── Classification (set via Excel upload / dashboard) ─────────────────────
     price_tier   = Column(
-        SAEnum(PriceTier, name="price_tier_enum", create_type=False),
+        SAEnum(PriceTier, name="price_tier_enum", create_type=False,
+               values_callable=lambda x: [e.value for e in x]),
         nullable=True,
         index=True,
     )
@@ -220,7 +221,8 @@ class Product(Base):
                    # e.g. "Italian Niche", "French Designer", "Local"
 
     product_status = Column(
-        SAEnum(ProductStatus, name="product_status_enum", create_type=False),
+        SAEnum(ProductStatus, name="product_status_enum", create_type=False,
+               values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=ProductStatus.active,
         index=True,
