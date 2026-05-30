@@ -376,7 +376,7 @@ def _ensure_brand(db: Session, name: str | None, cache: dict) -> int | None:
     db.add(obj)
     db.flush()
     cache[key] = obj.id
-    logger.info("brand_auto_created", extra={"name": name.strip()})
+    logger.info("brand_auto_created", extra={"brand_name": name.strip()})
     return obj.id
 
 
@@ -390,7 +390,7 @@ def _ensure_category(db: Session, name: str | None, cache: dict) -> int | None:
     db.add(obj)
     db.flush()
     cache[key] = obj.id
-    logger.info("category_auto_created", extra={"name": name.strip()})
+    logger.info("category_auto_created", extra={"category_name": name.strip()})
     return obj.id
 
 
@@ -409,7 +409,7 @@ def _ensure_subcategory(
     db.add(obj)
     db.flush()
     cache[key] = obj.id
-    logger.info("subcategory_auto_created", extra={"name": name.strip(), "category_id": category_id})
+    logger.info("subcategory_auto_created", extra={"subcategory_name": name.strip(), "category_id": category_id})
     return obj.id
 
 
