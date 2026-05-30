@@ -515,10 +515,22 @@ def process_upload_job(job_id: str, filename: str, content: bytes, dry_run: bool
             row_number = int(index) + 2
             raw = _row_to_raw(row, col_map)
 
-            # Normalise entity names before validation
-            raw["brand_name"]       = normalizer.resolve_brand(raw.get("brand_name"))
-            raw["category_name"]    = normalizer.resolve_category(raw.get("category_name"))
-            raw["subcategory_name"] = normalizer.resolve_subcategory(raw.get("subcategory_name"))
+            # Normalise entity names — guard against NaN / unexpected types
+            try:
+                raw["brand_name"]       = normalizer.resolve_brand(raw.get("brand_name"))
+                raw["category_name"]    = normalizer.resolve_category(raw.get("category_name"))
+                raw["subcategory_name"] = normalizer.resolve_subcategory(raw.get("subcategory_name"))
+            except Exception as exc:
+                logger.warning(
+                    "normalization_error_row_skipped",
+                    extra={"row": row_number, "error": str(exc)},
+                )
+                row_errors.append(UploadRowError(
+                    row=row_number,
+                    barcode=_clean(raw.get("barcode")),
+                    error=f"Name normalization failed: {exc}",
+                ))
+                continue
 
             try:
                 data = ProductUploadRow(**raw)
@@ -851,9 +863,17 @@ def upsert_product_upload(
     for index, row in df.iterrows():
         row_number = int(index) + 2
         raw = _row_to_raw(row, col_map)
-        raw["brand_name"]       = normalizer.resolve_brand(raw.get("brand_name"))
-        raw["category_name"]    = normalizer.resolve_category(raw.get("category_name"))
-        raw["subcategory_name"] = normalizer.resolve_subcategory(raw.get("subcategory_name"))
+        try:
+            raw["brand_name"]       = normalizer.resolve_brand(raw.get("brand_name"))
+            raw["category_name"]    = normalizer.resolve_category(raw.get("category_name"))
+            raw["subcategory_name"] = normalizer.resolve_subcategory(raw.get("subcategory_name"))
+        except Exception as exc:
+            row_errors.append(UploadRowError(
+                row=row_number,
+                barcode=_clean(raw.get("barcode")),
+                error=f"Name normalization failed: {exc}",
+            ))
+            continue
 
         try:
             data = ProductUploadRow(**raw)

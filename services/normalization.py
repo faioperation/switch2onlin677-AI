@@ -154,12 +154,20 @@ class NameNormalizer:
     # ── Private ───────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _clean(raw: str | None) -> str | None:
-        """Strip, collapse internal whitespace, return None if empty."""
-        if not raw:
+    def _clean(raw) -> str | None:
+        """Strip, collapse internal whitespace, return None if empty or NaN."""
+        if raw is None:
             return None
+        # pandas NaN comes in as float — treat as empty
+        if isinstance(raw, float):
+            import math
+            if math.isnan(raw):
+                return None
+            raw = str(raw)
+        elif not isinstance(raw, str):
+            raw = str(raw)
         cleaned = re.sub(r"\s+", " ", raw.strip())
-        return cleaned if cleaned else None
+        return cleaned if cleaned and cleaned.lower() not in {"nan", "none", "null", "n/a", "na"} else None
 
     @staticmethod
     def _lookup_key(name: str) -> str:
