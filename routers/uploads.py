@@ -105,7 +105,7 @@ async def upload_products(
 
     logger.info(
         "upload_job_queued",
-        extra={"job_id": job_id, "filename": filename, "dry_run": dry_run},
+        extra={"job_id": job_id, "upload_filename": filename, "dry_run": dry_run},
     )
 
     return {

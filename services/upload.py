@@ -477,7 +477,7 @@ def process_upload_job(job_id: str, filename: str, content: bytes, dry_run: bool
 
     try:
         _commit_job_progress(job_id, status="processing", started_at=datetime.now())
-        logger.info("upload_job_started", extra={"job_id": job_id, "filename": filename})
+        logger.info("upload_job_started", extra={"job_id": job_id, "upload_filename": filename})
 
         # ── 1. Parse file ─────────────────────────────────────────────────────
         try:
