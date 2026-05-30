@@ -29,6 +29,52 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
 
     # ==========================================================================
+    # BRANDS / CATEGORIES / SUBCATEGORIES — CREATE TABLES IF NOT EXISTS
+    # These were created by init_db_fuzzy.py on the original DB but are absent
+    # on a fresh database. We use raw SQL with IF NOT EXISTS so this is safe
+    # to run whether or not the tables already exist.
+    # ==========================================================================
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS brands (
+            id          SERIAL PRIMARY KEY,
+            name        VARCHAR(255) NOT NULL UNIQUE,
+            name_ar     VARCHAR(255),
+            description TEXT,
+            image_url   VARCHAR(500),
+            is_active   INTEGER DEFAULT 1,
+            created_at  TIMESTAMP DEFAULT now(),
+            updated_at  TIMESTAMP
+        )
+    """)
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id          SERIAL PRIMARY KEY,
+            name        VARCHAR(255) NOT NULL UNIQUE,
+            name_ar     VARCHAR(255),
+            description TEXT,
+            image_url   VARCHAR(500),
+            is_active   INTEGER DEFAULT 1,
+            created_at  TIMESTAMP DEFAULT now(),
+            updated_at  TIMESTAMP
+        )
+    """)
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS subcategories (
+            id          SERIAL PRIMARY KEY,
+            category_id INTEGER,
+            name        VARCHAR(255) NOT NULL,
+            name_ar     VARCHAR(255),
+            description TEXT,
+            is_active   INTEGER DEFAULT 1,
+            created_at  TIMESTAMP DEFAULT now(),
+            updated_at  TIMESTAMP
+        )
+    """)
+
+    # ==========================================================================
     # PRODUCTS — GIN / TRIGRAM INDEXES
     # ==========================================================================
 
