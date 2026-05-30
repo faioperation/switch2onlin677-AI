@@ -61,6 +61,7 @@ from typing import Any
 import pandas as pd
 from pydantic import ValidationError
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
@@ -799,43 +800,55 @@ def _apply_fields(
 
 def _batch_upsert_search_index(db: Session, updates: list[dict]) -> None:
     """
-    Upsert ProductSearchIndex for all updated products.
+    Upsert ProductSearchIndex using PostgreSQL INSERT ... ON CONFLICT DO UPDATE.
 
-    Fetches existing index rows for the batch barcodes in one query,
-    then creates or updates them in memory before a single flush.
+    Atomic: no prior SELECT needed, no race condition, handles duplicates
+    within the same batch (last row wins per barcode).
     """
-    barcodes = [u["barcode"] for u in updates]
-    existing: dict[str, ProductSearchIndex] = {
-        idx.product_id: idx
-        for idx in db.query(ProductSearchIndex)
-        .filter(ProductSearchIndex.product_id.in_(barcodes))
-        .all()
-    }
+    if not updates:
+        return
 
+    # Deduplicate by barcode — last writer wins within a batch
+    deduped: dict[str, dict] = {}
     for u in updates:
-        barcode = u["barcode"]
-        search_text = build_search_text(
-            u.get("item_code"),
-            u.get("item_name"),
-            u.get("brand_name"),
-            u.get("category_name"),
-            u.get("subcategory_name"),
-        )
-        if barcode in existing:
-            idx = existing[barcode]
-        else:
-            idx = ProductSearchIndex(product_id=barcode)
-            db.add(idx)
+        deduped[u["barcode"]] = u
 
-        idx.item_code        = u.get("item_code")
-        idx.barcode          = barcode
-        idx.item_name        = u.get("item_name")
-        idx.brand_name       = u.get("brand_name")
-        idx.category_name    = u.get("category_name")
-        idx.subcategory_name = u.get("subcategory_name")
-        idx.search_text      = search_text
+    rows = [
+        {
+            "product_id":       barcode,
+            "item_code":        u.get("item_code"),
+            "barcode":          barcode,
+            "item_name":        u.get("item_name"),
+            "brand_name":       u.get("brand_name"),
+            "category_name":    u.get("category_name"),
+            "subcategory_name": u.get("subcategory_name"),
+            "search_text":      build_search_text(
+                u.get("item_code"),
+                u.get("item_name"),
+                u.get("brand_name"),
+                u.get("category_name"),
+                u.get("subcategory_name"),
+            ),
+            "updated_at": None,
+        }
+        for barcode, u in deduped.items()
+    ]
 
-    db.flush()
+    stmt = pg_insert(ProductSearchIndex).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["product_id"],
+        set_={
+            "item_code":        stmt.excluded.item_code,
+            "barcode":          stmt.excluded.barcode,
+            "item_name":        stmt.excluded.item_name,
+            "brand_name":       stmt.excluded.brand_name,
+            "category_name":    stmt.excluded.category_name,
+            "subcategory_name": stmt.excluded.subcategory_name,
+            "search_text":      stmt.excluded.search_text,
+            "updated_at":       func.now(),
+        },
+    )
+    db.execute(stmt)
 
 
 # ── Synchronous upsert (kept for backward compat / small files / dry-run) ─────
