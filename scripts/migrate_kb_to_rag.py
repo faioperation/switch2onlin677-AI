@@ -1,3 +1,7 @@
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+del _os, _sys
+
 """
 migrate_kb_to_rag.py
 ====================
@@ -15,10 +19,8 @@ import os
 import sys
 import logging
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from database import SessionLocal
-from rag_service import embed_and_store_knowledge, startup_check, _vector_available
+from ai.rag_service import embed_and_store_knowledge, startup_check, _vector_available
 
 logging.basicConfig(
     level=logging.INFO,

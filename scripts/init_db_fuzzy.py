@@ -1,3 +1,7 @@
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+del _os, _sys
+
 from sqlalchemy import text
 from database import engine, Base
 import models

@@ -1,6 +1,6 @@
 """
-rag_service.py
-==============
+ai/rag_service.py
+=================
 Production-grade RAG engine for DhifafBot's knowledge base.
 
 Uses pgvector (PostgreSQL) + OpenAI text-embedding-3-small for semantic retrieval.
