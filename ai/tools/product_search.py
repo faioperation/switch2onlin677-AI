@@ -3,14 +3,23 @@ ai/tools/product_search.py
 ==========================
 Product search and detail lookup tools for the GPT tool-call pipeline.
 Implements hybrid weighted search (exact → name → brand → FTS → trigram).
+
+Session injection
+-----------------
+`search_products` and `get_product_details` accept an optional `db` parameter.
+When `db` is provided (e.g. from the tool dispatcher), no extra session is
+opened and the caller owns the lifecycle.  When `db` is None (backward-compat
+callers, tests, standalone scripts) each function opens and closes its own
+session via SessionLocal().
 """
 from __future__ import annotations
 
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Optional
 
 from sqlalchemy import text, or_
+from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from models import Brand, Category, Product, ProductSearchIndex
@@ -29,7 +38,7 @@ BASE_URL = os.getenv("SAP_API_URL", "https://dbc-online.free.beeceptor.com")
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-def search_product_index(query: str, limit: int = 20) -> List[str]:
+def search_product_index(query: str, limit: int = 20) -> list[str]:
     """Return a list of product barcodes matching *query* via the search index."""
     db = SessionLocal()
     try:
@@ -59,7 +68,7 @@ def search_product_index(query: str, limit: int = 20) -> List[str]:
 # ── Public tool functions ──────────────────────────────────────────────────────
 
 def search_products(
-    query:    str,
+    query:     str,
     max_price: Optional[float] = None,
     min_price: Optional[float] = None,
     in_stock:  Optional[bool]  = None,
@@ -67,14 +76,20 @@ def search_products(
     sort_by:   str = "item_name",
     limit:     int = 8,
     skip:      int = 0,
+    db:        Optional[Session] = None,
 ) -> dict:
     """
     Hybrid weighted search: exact match > name match > brand match >
     full-text (ts_rank) > trigram similarity.
 
     Enforces hard filters: product_status=active, available_qty>5, deleted_at IS NULL.
+
+    Session injection: pass `db` to reuse the caller's session and avoid opening
+    a second connection.  When `db` is None a fresh SessionLocal() is used.
     """
-    db = SessionLocal()
+    _own_db = db is None
+    if _own_db:
+        db = SessionLocal()
     try:
         query_cleaned = query.strip()
         tokens        = [t.strip() for t in query_cleaned.split() if len(t.strip()) > 1]
@@ -210,12 +225,23 @@ def search_products(
         logger.error("search_products error query=%r: %s", query, exc, exc_info=True)
         return {"found": False, "message": "Search temporarily unavailable."}
     finally:
-        db.close()
+        if _own_db:
+            db.close()
 
 
-def get_product_details(product_id: str) -> dict:
-    """Full product detail lookup by barcode. Resolves brand/category names."""
-    db = SessionLocal()
+def get_product_details(
+    product_id: str,
+    db: Optional[Session] = None,
+) -> dict:
+    """
+    Full product detail lookup by barcode. Resolves brand/category names.
+
+    Session injection: pass `db` to reuse the caller's session.
+    When `db` is None a fresh SessionLocal() is used.
+    """
+    _own_db = db is None
+    if _own_db:
+        db = SessionLocal()
     try:
         product = db.query(Product).filter(Product.barcode == product_id).first()
         if not product:
@@ -250,4 +276,5 @@ def get_product_details(product_id: str) -> dict:
         logger.error("get_product_details error id=%r: %s", product_id, exc, exc_info=True)
         return {"found": False, "message": f"Details error: {exc}"}
     finally:
-        db.close()
+        if _own_db:
+            db.close()

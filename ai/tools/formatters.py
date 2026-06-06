@@ -34,12 +34,26 @@ from typing import Dict, List, Optional
 
 
 def _atomic_replace(src: Path, dst: Path) -> None:
-    """Rename src → dst atomically (with Windows PermissionError retry)."""
-    try:
-        src.replace(dst)
-    except PermissionError:
-        _time.sleep(0.002)
-        src.replace(dst)
+    """
+    Rename src → dst atomically.
+
+    On POSIX: os.replace() is a single atomic syscall — the retry path is
+    never reached.
+
+    On Windows: retries up to 5 times with exponential backoff (1 ms → 16 ms,
+    total ≤ 31 ms) to survive transient PermissionError from concurrent readers.
+    """
+    delay = 0.001
+    last_exc: Exception
+    for _ in range(5):
+        try:
+            src.replace(dst)
+            return
+        except PermissionError as exc:
+            last_exc = exc
+            _time.sleep(delay)
+            delay *= 2
+    raise last_exc
 
 logger = logging.getLogger(__name__)
 

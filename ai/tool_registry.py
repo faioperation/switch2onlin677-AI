@@ -276,8 +276,14 @@ def execute_tool(
 
 
 def _dispatch(tool_name: str, args: dict, user_id: str | None, db) -> dict:
-    """Route tool calls to the correct service function."""
-    from tools import search_products, get_product_details, check_availability
+    """Route tool calls to the correct service function.
+
+    search_products, get_product_details, and check_availability receive the
+    dispatcher's open session via `db=db` so they do not open a second
+    connection per tool call.
+    """
+    from ai.tools.product_search import search_products, get_product_details
+    from ai.tools.availability import check_availability
 
     if tool_name == "search_products":
         return search_products(
@@ -289,13 +295,14 @@ def _dispatch(tool_name: str, args: dict, user_id: str | None, db) -> dict:
             limit     = args.get("limit", 8),
             skip      = args.get("skip", 0),
             sort_by   = args.get("sort_by", "item_name"),
+            db        = db,
         )
 
     if tool_name == "get_product_details":
-        return get_product_details(args["product_id"])
+        return get_product_details(args["product_id"], db=db)
 
     if tool_name == "check_availability":
-        return check_availability(args["query"])
+        return check_availability(args["query"], db=db)
 
     if tool_name == "get_recommendations":
         result = _svc_recommended(

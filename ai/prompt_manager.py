@@ -51,16 +51,26 @@ def _atomic_replace(src: Path, dst: Path) -> None:
     """
     Rename src → dst atomically.
 
-    On POSIX: os.replace() is a single atomic syscall.
-    On Windows: os.replace() can raise PermissionError if dst is momentarily
-    held open by a concurrent reader.  We retry once after a brief sleep —
-    the reader's file-handle is released within microseconds.
+    On POSIX: os.replace() is a single atomic syscall — the retry path is
+    never reached.
+
+    On Windows: os.replace() raises PermissionError when the destination is
+    momentarily held open by a concurrent reader (AV scanner, other thread).
+    We retry up to 5 times with exponential backoff (1 ms → 16 ms, total ≤ 31 ms).
+    Concurrent readers release the handle within microseconds, so retries
+    almost always succeed on the first or second attempt.
     """
-    try:
-        src.replace(dst)
-    except PermissionError:
-        _time.sleep(0.002)   # allow concurrent reader to close the handle
-        src.replace(dst)
+    delay = 0.001           # initial delay: 1 ms
+    last_exc: Exception
+    for _ in range(5):
+        try:
+            src.replace(dst)
+            return
+        except PermissionError as exc:
+            last_exc = exc
+            _time.sleep(delay)
+            delay *= 2      # 1 ms → 2 ms → 4 ms → 8 ms → 16 ms
+    raise last_exc          # all 5 attempts exhausted — propagate
 
 logger = logging.getLogger(__name__)
 

@@ -49,24 +49,33 @@ import models as _models  # noqa: F401 — registers all ORM classes with Base.m
 
 
 def _safe_create_all() -> None:
+    # Tables that require PostgreSQL extensions not guaranteed to be present:
+    #   knowledge_chunks       — requires pgvector (text-embedding-3-small vectors)
+    #   user_preference_profiles — requires pgvector (user embedding column)
+    # Both are created separately below so startup never fails without the extension.
+    _PGVECTOR_TABLES = {"knowledge_chunks", "user_preference_profiles"}
+
     all_tables  = Base.metadata.tables
-    core_tables = {k: v for k, v in all_tables.items() if k != "knowledge_chunks"}
+    core_tables = {k: v for k, v in all_tables.items() if k not in _PGVECTOR_TABLES}
     if core_tables:
         core_meta = _MetaData()
         for tbl in core_tables.values():
             tbl.to_metadata(core_meta)
         core_meta.create_all(bind=engine)
 
-    kb_table = all_tables.get("knowledge_chunks")
-    if kb_table is not None:
+    for tbl_name in _PGVECTOR_TABLES:
+        tbl = all_tables.get(tbl_name)
+        if tbl is None:
+            continue
         try:
             single_meta = _MetaData()
-            kb_table.to_metadata(single_meta)
+            tbl.to_metadata(single_meta)
             single_meta.create_all(bind=engine)
-            _log.info("rag_table_ready table=knowledge_chunks")
+            _log.info("pgvector_table_ready table=%s", tbl_name)
         except Exception as exc:
             _log.warning(
-                "rag_table_skipped reason=pgvector_not_installed error=%s", exc
+                "pgvector_table_skipped table=%s reason=pgvector_not_installed error=%s",
+                tbl_name, exc,
             )
 
 
