@@ -173,6 +173,7 @@ from api.routes.brands        import router as brands_router
 from api.routes.subcategories import router as subcategories_router
 from api.routes.recommendations import router as recommendations_router
 from api.routes.bundles       import router as bundles_router
+from api.routes.handoff       import router as handoff_router
 
 app.include_router(uploads_router)
 app.include_router(products_router)
@@ -182,6 +183,7 @@ app.include_router(brands_router)
 app.include_router(subcategories_router)
 app.include_router(recommendations_router)
 app.include_router(bundles_router)
+app.include_router(handoff_router)
 app.include_router(chat_router)
 app.include_router(knowledge_router)
 app.include_router(system_router)

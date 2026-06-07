@@ -37,6 +37,14 @@ from database import get_db
 from models import ChatHistory
 from pydantic import BaseModel
 from services.chat_service import get_conversations, get_history, save_message
+from services.handoff_service import (
+    detect_intent,
+    get_or_create_handoff,
+    handoff_handling_message,
+    handoff_pending_message,
+    handoff_transfer_message,
+    trigger_transfer,
+)
 from services.lead_service import save_lead
 
 logger = logging.getLogger(__name__)
@@ -131,7 +139,7 @@ def generate_reply(data: ChatRequest, request: Request, db: Session = Depends(ge
     msg_clean  = data.message.strip().lower().rstrip("!.,؟?")
     has_arabic = any("؀" <= c <= "ۿ" for c in data.message)
 
-    # Intercept pure greetings / farewells — bypass AI for branded responses
+    # ── 1. Intercept pure greetings / farewells (unchanged) ───────────────────
     if msg_clean in _GREETING_WORDS:
         reply = FIXED_WELCOME_AR if has_arabic else FIXED_WELCOME_EN
         u_id  = save_message(data.user_id, "user",      data.message, db)
@@ -144,7 +152,55 @@ def generate_reply(data: ChatRequest, request: Request, db: Session = Depends(ge
         a_id  = save_message(data.user_id, "assistant", reply,        db)
         return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
 
-    # Normalize image + build storage thumbnail
+    # ── 2. Check human-handoff state BEFORE calling GPT ───────────────────────
+    handoff = get_or_create_handoff(data.user_id, db)
+
+    if handoff.ai_disabled:
+        # Save the user message so the agent sees it in the thread
+        u_id = save_message(data.user_id, "user", data.message, db)
+
+        if handoff.status.value == "human_handling":
+            # Agent is actively assigned — do not generate any automated reply.
+            # The agent will respond via POST /handoff/agent-message.
+            reply    = handoff_handling_message(has_arabic)
+            a_id     = save_message(data.user_id, "assistant", reply, db,
+                                    metadata={"type": "system_handoff"})
+            return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
+
+        if handoff.status.value in ("pending_human", "resolved"):
+            # Queued but not yet assigned, or resolved-but-AI-not-resumed
+            reply = handoff_pending_message(has_arabic)
+            a_id  = save_message(data.user_id, "assistant", reply, db,
+                                 metadata={"type": "system_handoff"})
+            return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
+
+    # ── 3. Purchase / escalation intent detection ─────────────────────────────
+    # Runs only when AI is still active (ai_disabled == False).
+    should_transfer, reason, confidence = detect_intent(data.message, history)
+
+    if should_transfer:
+        # Save user message first
+        u_id = save_message(data.user_id, "user", data.message, db)
+
+        # Transition to pending_human (idempotent if already transferred)
+        trigger_transfer(data.user_id, reason, confidence, db)
+
+        reply = handoff_transfer_message(has_arabic)
+        a_id  = save_message(
+            data.user_id, "assistant", reply, db,
+            metadata={
+                "type":       "handoff_trigger",
+                "reason":     reason,
+                "confidence": confidence,
+            },
+        )
+        logger.info(
+            "auto_handoff user=%s reason=%s confidence=%.2f",
+            data.user_id, reason, confidence,
+        )
+        return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
+
+    # ── 4. Normal GPT orchestration path (unchanged) ──────────────────────────
     image_for_ai:      str | None = None
     image_for_history: str | None = None
 

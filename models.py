@@ -587,3 +587,78 @@ class ProductStatusLog(Base):
         # Dashboard query: "all transitions to inactive today"
         Index("idx_psl_to_status_changed_at", "to_status", "changed_at"),
     )
+
+
+# ── Human-Agent Handoff ───────────────────────────────────────────────────────
+
+class HandoffStatus(str, enum.Enum):
+    """
+    Conversation lifecycle states for human-agent transfer.
+
+    State machine:
+        ai_active → pending_human → human_handling → resolved
+                                                   ↘ ai_active  (resume_ai)
+
+    ai_active      — GPT handles all messages normally.
+    pending_human  — Transfer queued; waiting for an agent to accept.
+                     AI responses are suppressed; user sees a hold message.
+    human_handling — An agent has accepted and owns the conversation.
+                     All messages bypass GPT entirely.
+    resolved       — Agent closed the conversation; AI can be resumed.
+    """
+    ai_active      = "ai_active"
+    pending_human  = "pending_human"
+    human_handling = "human_handling"
+    resolved       = "resolved"
+
+
+class ConversationHandoff(Base):
+    """
+    One row per user_id — tracks the current handoff state for a conversation.
+
+    The row is created on-demand the first time handoff state is needed for a
+    user (get_or_create pattern).  It is never deleted; status transitions are
+    done in-place so the audit fields (transferred_at, resolved_at, etc.) are
+    always visible.
+
+    ai_disabled is a convenience denormalization of
+    status in {pending_human, human_handling} — avoids an enum comparison
+    in hot-path checks.
+    """
+
+    __tablename__ = "conversation_handoffs"
+
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    user_id             = Column(String(255), nullable=False, unique=True, index=True)
+
+    status              = Column(
+        SAEnum(HandoffStatus, name="handoff_status_enum", create_type=False,
+               values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=HandoffStatus.ai_active,
+        index=True,
+    )
+
+    # Set when an agent accepts the conversation
+    assigned_agent_id   = Column(String(255), nullable=True, index=True)
+
+    # Why the conversation was transferred (keyword phrase / reason code)
+    transfer_reason     = Column(String(500), nullable=True)
+
+    # Purchase-intent confidence at the moment of transfer (0.0 – 1.0)
+    ai_confidence_score = Column(Numeric(5, 4), nullable=True)
+
+    # Convenience flag: True whenever status != ai_active
+    # Checked on every /reply call — avoids re-comparing the enum string.
+    ai_disabled         = Column(Boolean, nullable=False, default=False)
+
+    transferred_at      = Column(DateTime, nullable=True)
+    resolved_at         = Column(DateTime, nullable=True)
+    created_at          = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at          = Column(DateTime, onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_handoff_status",      "status"),
+        Index("idx_handoff_agent",       "assigned_agent_id"),
+        Index("idx_handoff_user_status", "user_id", "status"),
+    )
