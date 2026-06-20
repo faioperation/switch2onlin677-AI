@@ -16,6 +16,7 @@ All business logic lives in api/routes/, services/, and ai/.
 from __future__ import annotations
 
 import logging
+import os as _os
 
 from dotenv import load_dotenv
 
@@ -25,11 +26,11 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zoneinfo import ZoneInfo
 
-from ai.orchestrator import ChatOrchestrator
+from ai.orchestrator import AsyncChatOrchestrator, ChatOrchestrator
 from core.config import settings
 from core.exceptions import AppError
 from core.logging_config import setup_logging
@@ -195,30 +196,56 @@ _IRAQ_TZ = ZoneInfo("Asia/Baghdad")
 
 @app.on_event("startup")
 async def _startup() -> None:
-    # Wire AI orchestrator into app state (accessed by chat router via request.app.state)
-    openai_client        = OpenAI(api_key=settings.OPENAI_API_KEY)
-    app.state.orchestrator = ChatOrchestrator(openai_client)
+    # ── Async OpenAI client (non-blocking GPT calls) ──────────────────────────
+    async_client           = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    app.state.openai_client  = async_client   # shared for summary generation in chat.py
+    app.state.orchestrator   = AsyncChatOrchestrator(async_client)
 
-    # Start background scheduler
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
-    from services.embedding import embed_new_products
+    # ── Redis connectivity check (non-fatal) ──────────────────────────────────
+    try:
+        from services.cache_service import _get_redis, is_available
+        _get_redis()   # triggers connection + ping
+        _log.info("redis_status available=%s", is_available())
+    except Exception as exc:
+        _log.warning("redis_startup_check_failed error=%s — caching disabled", exc)
 
-    scheduler = AsyncIOScheduler(timezone=_IRAQ_TZ)
-    scheduler.add_job(
-        _run_sap_sync, trigger="cron", hour="6,18", minute=0,
-        timezone=_IRAQ_TZ, id="sap_sync", replace_existing=True,
-        max_instances=1, coalesce=True,
-    )
-    scheduler.add_job(
-        embed_new_products, trigger="cron", hour=3, minute=0,
-        timezone=_IRAQ_TZ, id="embedding_pipeline", replace_existing=True,
-        max_instances=1, coalesce=True, kwargs={"limit": 0, "force_all": False},
-    )
-    scheduler.start()
-    app.state.scheduler = scheduler
+    # ── Background scheduler ──────────────────────────────────────────────────
+    # Guard: only start the scheduler in the FIRST Gunicorn worker to prevent
+    # duplicate job execution. We use an environment variable set by Gunicorn's
+    # post_fork hook, or fall back to always starting (safe with max_instances=1).
+    _worker_id = int(_os.getenv("APP_WORKER_ID", "0"))
+    _should_schedule = (_worker_id == 0)
+
+    if _should_schedule:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from services.embedding import embed_new_products
+
+        scheduler = AsyncIOScheduler(timezone=_IRAQ_TZ)
+        scheduler.add_job(
+            _run_sap_sync, trigger="cron", hour="6,18", minute=0,
+            timezone=_IRAQ_TZ, id="sap_sync", replace_existing=True,
+            max_instances=1, coalesce=True,
+        )
+        scheduler.add_job(
+            embed_new_products, trigger="cron", hour=3, minute=0,
+            timezone=_IRAQ_TZ, id="embedding_pipeline", replace_existing=True,
+            max_instances=1, coalesce=True, kwargs={"limit": 0, "force_all": False},
+        )
+        # Flush stale product caches after every SAP sync
+        scheduler.add_job(
+            _invalidate_product_caches, trigger="cron", hour="6,18", minute=5,
+            timezone=_IRAQ_TZ, id="cache_invalidation", replace_existing=True,
+            max_instances=1, coalesce=True,
+        )
+        scheduler.start()
+        app.state.scheduler = scheduler
+        _log.info("scheduler_started worker_id=%d", _worker_id)
+    else:
+        _log.info("scheduler_skipped worker_id=%d (only worker 0 schedules)", _worker_id)
 
     _log.info(
-        "startup_complete sap_sync='06:00+18:00 IQ' embedding='03:00 IQ'"
+        "startup_complete worker=%d sap_sync='06:00+18:00 IQ' embedding='03:00 IQ'",
+        _worker_id,
     )
 
 
@@ -233,3 +260,13 @@ async def _shutdown() -> None:
 async def _run_sap_sync() -> None:
     from services.sync import sync_sap_data
     await sync_sap_data()
+
+
+async def _invalidate_product_caches() -> None:
+    """Flush Redis product list caches after SAP sync completes."""
+    try:
+        from services.cache_service import invalidate_product_lists
+        count = invalidate_product_lists()
+        _log.info("post_sync_cache_flush deleted_keys=%d", count)
+    except Exception as exc:
+        _log.warning("post_sync_cache_flush_failed error=%s", exc)

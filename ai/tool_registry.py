@@ -253,7 +253,45 @@ def _with_diversity(result: dict, user_id: str | None) -> dict:
     return result
 
 
-# ── Tool executor ──────────────────────────────────────────────────────────────
+# ── Tool executors ─────────────────────────────────────────────────────────────
+
+def execute_tool_with_db(
+    tool_name: str,
+    args:      dict[str, Any],
+    user_id:   str | None = None,
+    db         = None,
+) -> str:
+    """
+    Dispatch a tool call using an EXISTING database session.
+
+    WHY: The V1 execute_tool() opened a new session per tool call.  In a
+    6-tool-loop turn that means 6 connection pool checkouts + commits + closes.
+    Under concurrent load (50+ users) this exhausts the pool quickly.
+
+    The async orchestrator now passes its own per-request DB session here so
+    the entire tool loop shares one connection. The orchestrator is responsible
+    for closing the session after the turn completes.
+
+    Falls back to opening its own session if db=None (preserves backward
+    compatibility with any direct callers).
+    """
+    owns_session = db is None
+    if owns_session:
+        db = SessionLocal()
+    try:
+        result = _dispatch(tool_name, args, user_id, db)
+
+        # Cache popular tool results in Redis (best_sellers, new_arrivals, etc.)
+        _maybe_cache_result(tool_name, args, result)
+
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as exc:
+        logger.error("tool_error tool=%s error=%s", tool_name, exc, exc_info=True)
+        return json.dumps({"found": False, "error": f"Tool error: {exc}"})
+    finally:
+        if owns_session:
+            db.close()
+
 
 def execute_tool(
     tool_name: str,
@@ -261,18 +299,36 @@ def execute_tool(
     user_id:   str | None = None,
 ) -> str:
     """
-    Dispatch a tool call by name and return a JSON string result.
-    Recommendation tools automatically apply diversity filtering.
+    Legacy sync entry point (opens its own DB session).
+    Kept for backward compatibility. Prefer execute_tool_with_db().
     """
-    db = SessionLocal()
+    return execute_tool_with_db(tool_name, args, user_id, db=None)
+
+
+def _maybe_cache_result(tool_name: str, args: dict, result: dict) -> None:
+    """Write tool results to Redis cache for repeated identical queries."""
+    if not result.get("found"):
+        return
     try:
-        result = _dispatch(tool_name, args, user_id, db)
-        return json.dumps(result, ensure_ascii=False, default=str)
-    except Exception as exc:
-        logger.error("tool_error tool=%s error=%s", tool_name, exc, exc_info=True)
-        return json.dumps({"found": False, "error": f"Tool error: {exc}"})
-    finally:
-        db.close()
+        from services import cache_service as cs
+        products = result.get("products", [])
+        if not products:
+            return
+
+        cat   = args.get("category")
+        tier  = args.get("price_tier")
+        limit = args.get("limit", 6)
+
+        if tool_name == "get_best_selling":
+            cs.set_best_sellers(cat, tier, products)
+        elif tool_name == "get_new_arrivals":
+            cs.set_new_arrivals(cat, products)
+        elif tool_name == "get_featured_products":
+            cs.set_featured(limit, products)
+        elif tool_name == "get_recommendations":
+            cs.set_recommended(cat, tier, products)
+    except Exception:
+        pass   # cache write failure is never fatal
 
 
 def _dispatch(tool_name: str, args: dict, user_id: str | None, db) -> dict:
@@ -305,33 +361,68 @@ def _dispatch(tool_name: str, args: dict, user_id: str | None, db) -> dict:
         return check_availability(args["query"], db=db)
 
     if tool_name == "get_recommendations":
+        cat  = args.get("category")
+        tier = args.get("price_tier")
+        # Cache read first
+        try:
+            from services import cache_service as cs
+            cached = cs.get_recommended(cat, tier)
+            if cached is not None:
+                return _with_diversity({"found": True, "products": cached, "returned": len(cached)}, user_id)
+        except Exception:
+            pass
         result = _svc_recommended(
             db          = db,
-            category_id = _resolve_category_id(db, args.get("category")),
-            price_tier  = args.get("price_tier"),
+            category_id = _resolve_category_id(db, cat),
+            price_tier  = tier,
             limit       = args.get("limit", 6),
         )
         return _with_diversity(result, user_id)
 
     if tool_name == "get_best_selling":
+        cat  = args.get("category")
+        tier = args.get("price_tier")
+        try:
+            from services import cache_service as cs
+            cached = cs.get_best_sellers(cat, tier)
+            if cached is not None:
+                return _with_diversity({"found": True, "products": cached, "returned": len(cached)}, user_id)
+        except Exception:
+            pass
         result = _svc_best_selling(
             db          = db,
-            category_id = _resolve_category_id(db, args.get("category")),
-            price_tier  = args.get("price_tier"),
+            category_id = _resolve_category_id(db, cat),
+            price_tier  = tier,
             limit       = args.get("limit", 6),
         )
         return _with_diversity(result, user_id)
 
     if tool_name == "get_new_arrivals":
+        cat = args.get("category")
+        try:
+            from services import cache_service as cs
+            cached = cs.get_new_arrivals(cat)
+            if cached is not None:
+                return _with_diversity({"found": True, "products": cached, "returned": len(cached)}, user_id)
+        except Exception:
+            pass
         result = _svc_new_arrivals(
             db          = db,
-            category_id = _resolve_category_id(db, args.get("category")),
+            category_id = _resolve_category_id(db, cat),
             limit       = args.get("limit", 6),
         )
         return _with_diversity(result, user_id)
 
     if tool_name == "get_featured_products":
-        result = _svc_featured(db=db, limit=args.get("limit", 8))
+        limit = args.get("limit", 8)
+        try:
+            from services import cache_service as cs
+            cached = cs.get_featured(limit)
+            if cached is not None:
+                return _with_diversity({"found": True, "products": cached, "returned": len(cached)}, user_id)
+        except Exception:
+            pass
+        result = _svc_featured(db=db, limit=limit)
         return _with_diversity(result, user_id)
 
     if tool_name == "get_similar_products":

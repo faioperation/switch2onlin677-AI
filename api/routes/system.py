@@ -55,9 +55,13 @@ class PromptResponse(BaseModel):
 @router.get("/health")
 def health_check():
     """Liveness probe — always 200 if the process is alive."""
+    from core.circuit_breaker import openai_circuit_breaker
+    from services.cache_service import get_cache_stats, is_available as redis_ok
     return {
-        "status":    "healthy",
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "status":         "healthy",
+        "timestamp":      datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "openai_circuit": openai_circuit_breaker.get_stats(),
+        "redis":          {"available": redis_ok(), **get_cache_stats()},
     }
 
 

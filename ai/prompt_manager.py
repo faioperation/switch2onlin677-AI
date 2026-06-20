@@ -230,6 +230,39 @@ def _build_full_prompt_uncached() -> str:
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
+def build_base_system_prompt() -> str:
+    """
+    Return only the base system prompt (personality + instructions) WITHOUT
+    company knowledge injected.
+
+    Used by the optimized RAG-aware orchestrator, which retrieves only the
+    relevant knowledge chunks per query via ai.rag_service instead of
+    injecting the entire knowledge base.
+
+    This function has its own cache keyed on system_prompt.txt mtime only.
+    """
+    prompt_mtime = _get_mtime(SYSTEM_PROMPT_FILE)
+    with _lock:
+        # Re-use the full-prompt cache if it was built with the same base file
+        if (
+            _cache.content
+            and _cache.prompt_mtime == prompt_mtime
+        ):
+            # Full cache is valid — extract just the base portion.
+            # Since _build_full_prompt_uncached() = base + "\n\n    COMPANY KNOWLEDGE: ..."
+            # we split on the section header to return the base only.
+            content = _cache.content
+            sep = "\n\n    COMPANY KNOWLEDGE:"
+            return content.split(sep)[0] if sep in content else content
+
+    # Cache miss or stale — read base from disk directly
+    try:
+        return load_system_prompt()
+    except FileNotFoundError:
+        logger.error("system_prompt_file_missing")
+        raise
+
+
 def build_full_system_prompt() -> str:
     """
     Return the complete system prompt (base + company knowledge).
@@ -240,6 +273,10 @@ def build_full_system_prompt() -> str:
     changes — no disk reads unless the cache is stale.
 
     Thread-safe: protected by a module-level threading.Lock().
+
+    DEPRECATED PATH: prefer build_base_system_prompt() + RAG retrieval.
+    This function is kept for backward compatibility and for deployments
+    where pgvector / RAG is not yet available.
     """
     # Fast path: check outside the lock first (read-only, no mutation)
     prompt_mtime    = _get_mtime(SYSTEM_PROMPT_FILE)

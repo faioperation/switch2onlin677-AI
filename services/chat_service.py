@@ -16,7 +16,8 @@ from models import ChatHistory
 
 logger = logging.getLogger(__name__)
 
-MAX_HISTORY: int = 70
+MAX_HISTORY: int = 70   # DB fetch limit (unchanged — all history is available)
+ACTIVE_WINDOW: int = 20  # messages injected verbatim into the prompt (optimized)
 
 
 def get_history(user_id: str, db: Session) -> list[dict]:
@@ -63,6 +64,29 @@ def save_message(
     db.commit()
     db.refresh(record)
     return record.id
+
+
+def get_history_with_summary(
+    user_id:       str,
+    db:            Session,
+    openai_client  = None,
+) -> tuple[list[dict], str | None]:
+    """
+    Return (active_window, summary) optimized for prompt injection.
+
+    - active_window : Last ACTIVE_WINDOW messages (verbatim for GPT).
+    - summary       : Compact summary of older messages, or None.
+
+    This is the preferred function for the chat orchestrator.
+    get_history() is unchanged and still used by the /history/{user_id} endpoint.
+    """
+    full_history = get_history(user_id, db)
+
+    if len(full_history) <= ACTIVE_WINDOW:
+        return full_history, None
+
+    from services.conversation_summary import get_windowed_history
+    return get_windowed_history(user_id, full_history, db, openai_client)
 
 
 def get_conversations(db: Session) -> list[dict]:

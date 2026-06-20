@@ -5,9 +5,19 @@ Chat interface endpoints:
   GET  /                   — serve the embedded chat UI
   GET  /history/{user_id}  — load chat history
   DELETE /history/{user_id}— clear chat history
-  POST /reply              — main chatbot turn
+  POST /reply              — main chatbot turn (now async)
   GET  /conversations      — admin conversation list
   POST /convert-image      — HEIC/image → JPEG data URL
+
+CHANGES FROM V1
+---------------
+- generate_reply() is now `async def` — required for AsyncChatOrchestrator
+- Rate limiting applied at the start of /reply via core.rate_limiter
+- History now uses get_history_with_summary() (sliding window + rolling summary)
+- DB session passed to orchestrator.run() for RAG retrieval
+- Circuit breaker errors produce a graceful 503 response (not 500)
+- Token + model usage logged per turn for observability
+- Conversation summary invalidated when history is deleted
 """
 from __future__ import annotations
 
@@ -15,17 +25,18 @@ import base64
 import logging
 import re
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
-from ai.orchestrator import ChatOrchestrator
+from ai.orchestrator import AsyncChatOrchestrator
 from ai.prompt_manager import (
     FIXED_GOODBYE_AR,
     FIXED_GOODBYE_EN,
     FIXED_WELCOME_AR,
     FIXED_WELCOME_EN,
 )
+from core.circuit_breaker import CircuitOpenError
 from core.image_utils import (
     HEIC_IMAGE_MIMES,
     SUPPORTED_IMAGE_MIMES,
@@ -33,10 +44,12 @@ from core.image_utils import (
     make_db_thumbnail,
     normalize_image_for_openai,
 )
+from core.rate_limiter import check_rate_limit
 from database import get_db
 from models import ChatHistory
 from pydantic import BaseModel
-from services.chat_service import get_conversations, get_history, save_message
+from services.chat_service import get_conversations, get_history, get_history_with_summary, save_message
+from services.conversation_summary import invalidate_summary
 from services.handoff_service import (
     detect_intent,
     get_or_create_handoff,
@@ -51,34 +64,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Chat"])
 
-# ── Greeting / farewell word sets (module-level to avoid recreation per request)
+# ── Greeting / farewell word sets ─────────────────────────────────────────────
 
 _GREETING_WORDS: frozenset[str] = frozenset({
     "hello", "hi", "hey", "hii", "hiii", "salam", "salaam",
-    "مرحبا",
-    "أهلا",
-    "أهلاً",
-    "اهلا",
-    "اهلاً",
-    "هلا",
-    "هلو",
-    "হ্যালো",
-    "হেলো",
-    "হাই",
-    "নমস্কার",
-    "সালাম",
+    "مرحبا", "أهلا", "أهلاً", "اهلا", "اهلاً", "هلا", "هلو",
+    "হ্যালো", "হেলো", "হাই", "নমস্কার", "সালাম",
 })
 
 _FAREWELL_WORDS: frozenset[str] = frozenset({
     "bye", "goodbye", "good bye", "see you", "take care",
-    "وداعً",
-    "وداعا",
-    "مع السلامة",
-    "شكرًا",
-    "شكرا",
-    "آলবিদা",
-    "বিদায়",
-    "ধন্যবাদ",
+    "وداعً", "وداعا", "مع السلامة", "شكرًا", "شكرا",
+    "আলবিদা", "বিদায়", "ধন্যবাদ",
 })
 
 
@@ -103,11 +100,15 @@ class ConvertImageResponse(BaseModel):
     original_mime: str
 
 
-# ── Endpoints ──────────────────────────────────────────────────────────────────
+# ── Static file path ──────────────────────────────────────────────────────────
 
 import os as _os
-_STATIC_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(__file__))), "static")
+_STATIC_DIR = _os.path.join(
+    _os.path.dirname(_os.path.dirname(_os.path.dirname(__file__))), "static"
+)
 
+
+# ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/", include_in_schema=False)
 def chat_ui():
@@ -123,6 +124,8 @@ def get_chat_history(user_id: str, db: Session = Depends(get_db)):
 def delete_chat_history(user_id: str, db: Session = Depends(get_db)):
     deleted = db.query(ChatHistory).filter(ChatHistory.user_id == user_id).delete()
     db.commit()
+    # Invalidate summary so next session starts fresh
+    invalidate_summary(user_id, db)
     return {"deleted": deleted}
 
 
@@ -132,14 +135,33 @@ def list_conversations(db: Session = Depends(get_db)):
 
 
 @router.post("/reply", response_model=ChatResponse)
-def generate_reply(data: ChatRequest, request: Request, db: Session = Depends(get_db)):
-    orchestrator: ChatOrchestrator = request.app.state.orchestrator
+async def generate_reply(
+    data:    ChatRequest,
+    request: Request,
+    db:      Session = Depends(get_db),
+):
+    """
+    Main chatbot turn handler (async).
 
-    history    = get_history(data.user_id, db)
+    Execution order:
+      1. Rate limit check (fast — Redis/memory, <1ms)
+      2. Intercept pure greetings/farewells (no GPT call)
+      3. Handoff state guard (no GPT call if agent is handling)
+      4. Purchase/escalation intent detection (keyword only — no GPT call)
+      5. Build sliding-window history + rolling summary
+      6. Run AsyncChatOrchestrator (async GPT call with RAG + model routing)
+      7. Persist messages + optional lead tracking
+      8. Return ChatResponse
+    """
+    orchestrator: AsyncChatOrchestrator = request.app.state.orchestrator
+
+    # ── 1. Rate limiting ──────────────────────────────────────────────────────
+    check_rate_limit(data.user_id)
+
     msg_clean  = data.message.strip().lower().rstrip("!.,؟?")
     has_arabic = any("؀" <= c <= "ۿ" for c in data.message)
 
-    # ── 1. Intercept pure greetings / farewells (unchanged) ───────────────────
+    # ── 2. Intercept greetings / farewells ────────────────────────────────────
     if msg_clean in _GREETING_WORDS:
         reply = FIXED_WELCOME_AR if has_arabic else FIXED_WELCOME_EN
         u_id  = save_message(data.user_id, "user",      data.message, db)
@@ -152,47 +174,36 @@ def generate_reply(data: ChatRequest, request: Request, db: Session = Depends(ge
         a_id  = save_message(data.user_id, "assistant", reply,        db)
         return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
 
-    # ── 2. Check human-handoff state BEFORE calling GPT ───────────────────────
+    # ── 3. Human-handoff state guard ──────────────────────────────────────────
     handoff = get_or_create_handoff(data.user_id, db)
 
     if handoff.ai_disabled:
-        # Save the user message so the agent sees it in the thread
         u_id = save_message(data.user_id, "user", data.message, db)
 
         if handoff.status.value == "human_handling":
-            # Agent is actively assigned — do not generate any automated reply.
-            # The agent will respond via POST /handoff/agent-message.
-            reply    = handoff_handling_message(has_arabic)
-            a_id     = save_message(data.user_id, "assistant", reply, db,
-                                    metadata={"type": "system_handoff"})
+            reply = handoff_handling_message(has_arabic)
+            a_id  = save_message(data.user_id, "assistant", reply, db,
+                                  metadata={"type": "system_handoff"})
             return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
 
         if handoff.status.value in ("pending_human", "resolved"):
-            # Queued but not yet assigned, or resolved-but-AI-not-resumed
             reply = handoff_pending_message(has_arabic)
             a_id  = save_message(data.user_id, "assistant", reply, db,
-                                 metadata={"type": "system_handoff"})
+                                  metadata={"type": "system_handoff"})
             return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
 
-    # ── 3. Purchase / escalation intent detection ─────────────────────────────
-    # Runs only when AI is still active (ai_disabled == False).
-    should_transfer, reason, confidence = detect_intent(data.message, history)
+    # ── 4. Purchase / escalation intent ───────────────────────────────────────
+    # Use full history for intent detection (70 messages — unchanged behaviour)
+    full_history = get_history(data.user_id, db)
+    should_transfer, reason, confidence = detect_intent(data.message, full_history)
 
     if should_transfer:
-        # Save user message first
         u_id = save_message(data.user_id, "user", data.message, db)
-
-        # Transition to pending_human (idempotent if already transferred)
         trigger_transfer(data.user_id, reason, confidence, db)
-
         reply = handoff_transfer_message(has_arabic)
         a_id  = save_message(
             data.user_id, "assistant", reply, db,
-            metadata={
-                "type":       "handoff_trigger",
-                "reason":     reason,
-                "confidence": confidence,
-            },
+            metadata={"type": "handoff_trigger", "reason": reason, "confidence": confidence},
         )
         logger.info(
             "auto_handoff user=%s reason=%s confidence=%.2f",
@@ -200,7 +211,14 @@ def generate_reply(data: ChatRequest, request: Request, db: Session = Depends(ge
         )
         return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
 
-    # ── 4. Normal GPT orchestration path (unchanged) ──────────────────────────
+    # ── 5. Build sliding-window history + rolling summary ─────────────────────
+    # Pass openai_client from app.state so summary generation uses the same client
+    openai_client = getattr(request.app.state, "openai_client", None)
+    active_window, summary = get_history_with_summary(
+        data.user_id, db, openai_client
+    )
+
+    # ── 6. Image handling ─────────────────────────────────────────────────────
     image_for_ai:      str | None = None
     image_for_history: str | None = None
 
@@ -209,7 +227,7 @@ def generate_reply(data: ChatRequest, request: Request, db: Session = Depends(ge
         try:
             m = re.match(r"data:(.*?);base64,(.*)$", image_for_ai, re.DOTALL)
             if m:
-                img_bytes = base64.b64decode(re.sub(r"\s+", "", m.group(2)))
+                img_bytes         = base64.b64decode(re.sub(r"\s+", "", m.group(2)))
                 image_for_history = make_db_thumbnail(img_bytes)
         except Exception:
             pass
@@ -219,21 +237,45 @@ def generate_reply(data: ChatRequest, request: Request, db: Session = Depends(ge
         metadata={"image_url": image_for_history} if image_for_history else None,
     )
 
-    result = orchestrator.run(
-        user_id        = data.user_id,
-        user_message   = data.message,
-        history        = history,
-        image_data_url = image_for_ai,
-    )
+    # ── 7. AI orchestration (async) ───────────────────────────────────────────
+    try:
+        result = await orchestrator.run(
+            user_id              = data.user_id,
+            user_message         = data.message,
+            history              = active_window,
+            image_data_url       = image_for_ai,
+            db                   = db,
+            conversation_summary = summary,
+            has_arabic           = has_arabic,
+        )
+    except CircuitOpenError as exc:
+        # Circuit is open — OpenAI is down. Return graceful degraded response.
+        logger.error("circuit_open_chat user=%s error=%s", data.user_id, exc)
+        degraded = (
+            "أواجه مشكلة مؤقتة. يرجى المحاولة مرة أخرى بعد لحظة." if has_arabic
+            else "I'm experiencing a temporary issue. Please try again in a moment."
+        )
+        a_id = save_message(data.user_id, "assistant", degraded, db,
+                            metadata={"type": "circuit_open"})
+        return ChatResponse(
+            reply=degraded, user_message_id=user_msg_id, assistant_message_id=a_id
+        )
+    except Exception as exc:
+        logger.error("orchestrator_error user=%s error=%s", data.user_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="AI service error. Please try again.")
 
+    # ── 8. Persist + respond ──────────────────────────────────────────────────
     if result.products:
         save_lead(data.user_id, result.products)
 
     assistant_msg_id = save_message(
         data.user_id, "assistant", result.reply, db,
         metadata={
-            "products":  result.products or None,
-            "image_url": result.image_url,
+            "products":   result.products or None,
+            "image_url":  result.image_url,
+            "model":      result.model_used,
+            "tokens_in":  result.tokens_in,
+            "tokens_out": result.tokens_out,
         },
     )
 
@@ -259,9 +301,7 @@ async def convert_image(file: UploadFile = File(...)):
             original_mime=mime,
         )
 
-    from fastapi import HTTPException
     from core.image_utils import _pil_to_jpeg_data_url
-
     is_heic = mime in HEIC_IMAGE_MIMES or looks_like_heif(content)
     try:
         data_url = _pil_to_jpeg_data_url(content)
