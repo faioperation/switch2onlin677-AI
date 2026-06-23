@@ -229,7 +229,7 @@ def _resolve_category_id(db, name: str | None) -> int | None:
     from models import Category
     row = (
         db.query(Category)
-        .filter(Category.name.ilike(f"%{name}%"), Category.is_active.is_(True))
+        .filter(Category.name.ilike(f"%{name}%"), Category.is_active == 1)
         .first()
     )
     return row.id if row else None
@@ -287,6 +287,10 @@ def execute_tool_with_db(
         return json.dumps(result, ensure_ascii=False, default=str)
     except Exception as exc:
         logger.error("tool_error tool=%s error=%s", tool_name, exc, exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return json.dumps({"found": False, "error": f"Tool error: {exc}"})
     finally:
         if owns_session:
