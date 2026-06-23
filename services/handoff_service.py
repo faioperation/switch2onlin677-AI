@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models import ChatHistory, ConversationHandoff, HandoffStatus
@@ -237,6 +238,14 @@ _NO_AGENT_MSG_AR = (
     "سيتواصل معك أحد أعضاء فريق المبيعات في أقرب وقت ممكن. "
     "شكراً لصبرك! 🙏"
 )
+_RESOLVED_MSG_EN = (
+    "Your previous request has been handled. "
+    "If you need further assistance, please send a new message and our team will help you. 🙏"
+)
+_RESOLVED_MSG_AR = (
+    "تم التعامل مع طلبك السابق. "
+    "إذا كنت بحاجة إلى مزيد من المساعدة، يرجى إرسال رسالة جديدة وسيساعدك فريقنا. 🙏"
+)
 
 
 def handoff_transfer_message(has_arabic: bool) -> str:
@@ -255,19 +264,30 @@ def no_agent_available_message(has_arabic: bool) -> str:
     return _NO_AGENT_MSG_AR if has_arabic else _NO_AGENT_MSG_EN
 
 
+def handoff_resolved_message(has_arabic: bool) -> str:
+    return _RESOLVED_MSG_AR if has_arabic else _RESOLVED_MSG_EN
+
+
 # ── State-management helpers ───────────────────────────────────────────────────
 
 def get_or_create_handoff(user_id: str, db: Session) -> ConversationHandoff:
     """
     Return the existing handoff row for *user_id*, creating it
     (status=ai_active, ai_disabled=False) if it does not exist yet.
+
+    The INSERT is wrapped in a try/except so that concurrent first-message
+    requests from multiple Gunicorn workers don't race on the UNIQUE user_id
+    constraint and cause an unhandled IntegrityError.
     """
     row = (
         db.query(ConversationHandoff)
         .filter(ConversationHandoff.user_id == user_id)
         .first()
     )
-    if row is None:
+    if row is not None:
+        return row
+
+    try:
         row = ConversationHandoff(
             user_id     = user_id,
             status      = HandoffStatus.ai_active,
@@ -276,7 +296,15 @@ def get_or_create_handoff(user_id: str, db: Session) -> ConversationHandoff:
         db.add(row)
         db.commit()
         db.refresh(row)
-    return row
+        return row
+    except IntegrityError:
+        # Another worker inserted the row between our SELECT and INSERT.
+        db.rollback()
+        return (
+            db.query(ConversationHandoff)
+            .filter(ConversationHandoff.user_id == user_id)
+            .first()
+        )
 
 
 def trigger_transfer(

@@ -55,6 +55,7 @@ from services.handoff_service import (
     get_or_create_handoff,
     handoff_handling_message,
     handoff_pending_message,
+    handoff_resolved_message,
     handoff_transfer_message,
     trigger_transfer,
 )
@@ -145,8 +146,8 @@ async def generate_reply(
 
     Execution order:
       1. Rate limit check (fast — Redis/memory, <1ms)
-      2. Intercept pure greetings/farewells (no GPT call)
-      3. Handoff state guard (no GPT call if agent is handling)
+      2. Handoff state guard (FIRST — suppresses ALL shortcuts when agent is handling)
+      3. Intercept pure greetings/farewells (no GPT call, only when AI active)
       4. Purchase/escalation intent detection (keyword only — no GPT call)
       5. Build sliding-window history + rolling summary
       6. Run AsyncChatOrchestrator (async GPT call with RAG + model routing)
@@ -161,20 +162,9 @@ async def generate_reply(
     msg_clean  = data.message.strip().lower().rstrip("!.,؟?")
     has_arabic = any("؀" <= c <= "ۿ" for c in data.message)
 
-    # ── 2. Intercept greetings / farewells ────────────────────────────────────
-    if msg_clean in _GREETING_WORDS:
-        reply = FIXED_WELCOME_AR if has_arabic else FIXED_WELCOME_EN
-        u_id  = save_message(data.user_id, "user",      data.message, db)
-        a_id  = save_message(data.user_id, "assistant", reply,        db)
-        return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
-
-    if msg_clean in _FAREWELL_WORDS:
-        reply = FIXED_GOODBYE_AR if has_arabic else FIXED_GOODBYE_EN
-        u_id  = save_message(data.user_id, "user",      data.message, db)
-        a_id  = save_message(data.user_id, "assistant", reply,        db)
-        return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
-
-    # ── 3. Human-handoff state guard ──────────────────────────────────────────
+    # ── 2. Human-handoff state guard (MUST run before greeting intercept) ─────
+    # When ai_disabled=True, greetings and farewells must still be suppressed —
+    # the user is waiting for a human agent and should not receive a new welcome.
     handoff = get_or_create_handoff(data.user_id, db)
 
     if handoff.ai_disabled:
@@ -186,11 +176,31 @@ async def generate_reply(
                                   metadata={"type": "system_handoff"})
             return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
 
-        if handoff.status.value in ("pending_human", "resolved"):
-            reply = handoff_pending_message(has_arabic)
+        if handoff.status.value == "resolved":
+            # Case was handled but AI not yet re-enabled — give resolved message, not queue message
+            reply = handoff_resolved_message(has_arabic)
             a_id  = save_message(data.user_id, "assistant", reply, db,
-                                  metadata={"type": "system_handoff"})
+                                  metadata={"type": "system_handoff_resolved"})
             return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
+
+        # pending_human: still waiting for agent to accept
+        reply = handoff_pending_message(has_arabic)
+        a_id  = save_message(data.user_id, "assistant", reply, db,
+                              metadata={"type": "system_handoff"})
+        return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
+
+    # ── 3. Intercept greetings / farewells (only when AI is active) ───────────
+    if msg_clean in _GREETING_WORDS:
+        reply = FIXED_WELCOME_AR if has_arabic else FIXED_WELCOME_EN
+        u_id  = save_message(data.user_id, "user",      data.message, db)
+        a_id  = save_message(data.user_id, "assistant", reply,        db)
+        return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
+
+    if msg_clean in _FAREWELL_WORDS:
+        reply = FIXED_GOODBYE_AR if has_arabic else FIXED_GOODBYE_EN
+        u_id  = save_message(data.user_id, "user",      data.message, db)
+        a_id  = save_message(data.user_id, "assistant", reply,        db)
+        return ChatResponse(reply=reply, user_message_id=u_id, assistant_message_id=a_id)
 
     # ── 4. Purchase / escalation intent ───────────────────────────────────────
     # Use full history for intent detection (70 messages — unchanged behaviour)
