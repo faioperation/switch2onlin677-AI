@@ -175,8 +175,10 @@ from api.routes.subcategories import router as subcategories_router
 from api.routes.recommendations import router as recommendations_router
 from api.routes.bundles       import router as bundles_router
 from api.routes.handoff       import router as handoff_router
+from api.routes.export        import router as export_router
 
 app.include_router(uploads_router)
+app.include_router(export_router)
 app.include_router(products_router)
 app.include_router(ai_rec_router)
 app.include_router(categories_router)
