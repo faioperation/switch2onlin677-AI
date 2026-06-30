@@ -33,51 +33,36 @@ import io
 import json
 import logging
 import os
-from datetime import datetime, timezone
 from typing import Any, Optional
-from zoneinfo import ZoneInfo
 
 from openpyxl import Workbook
 from openpyxl.cell.cell import WriteOnlyCell
 from openpyxl.utils import get_column_letter
-from sqlalchemy import func, or_
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from models import Brand, Category, Product, ProductSearchIndex, Subcategory
 from utils.excel_styles import (
-    ALIGN_CENTER,
     ALIGN_HEADER,
     ALIGN_LEFT,
-    ALIGN_META,
-    ALIGN_TITLE,
     BORDER_CELL,
     BORDER_HEADER,
-    BORDER_NONE,
     EXPORT_COLUMNS,
     FILL_HEADER,
-    FILL_IN_STOCK,
     FILL_LOW_STOCK,
-    FILL_META,
     FILL_OUT_STOCK,
     FILL_ROW_EVEN,
     FILL_ROW_ODD,
-    FILL_SEP,
-    FILL_TITLE,
     FONT_DATA,
     FONT_HEADER,
-    FONT_META_KEY,
-    FONT_META_VAL,
-    FONT_TITLE,
     FMT_TEXT,
     TOTAL_COLS,
 )
 
 logger = logging.getLogger(__name__)
 
-_BAGHDAD_TZ = ZoneInfo("Asia/Baghdad")
-_CHUNK_SIZE = 500                      # SQLAlchemy cursor batch size
-_LAST_COL   = get_column_letter(TOTAL_COLS)   # "AI" for 35 columns
-_DATA_START = 7                        # First data row (rows 1-6 are meta+header)
+_CHUNK_SIZE = 500   # SQLAlchemy cursor batch size
+_DATA_START = 2    # First data row (row 1 is the header row)
 
 _RATE_FILE  = os.path.join(os.path.dirname(os.path.dirname(__file__)), "rate.json")
 
@@ -187,31 +172,6 @@ def _row_to_dict(r: Any, rate: float) -> dict:
         "category":          {"id": r.category_id,    "name": getattr(r, "category_name",    None)},
         "subcategory":       {"id": r.subcategory_id, "name": getattr(r, "subcategory_name", None)},
     }
-
-
-def _build_filter_summary(
-    q:               Optional[str],
-    brand_id:        Optional[int],
-    category_id:     Optional[int],
-    subcategory_id:  Optional[int],
-    is_best_selling: Optional[int],
-    in_stock:        Optional[bool],
-    min_price:       Optional[float],
-    max_price:       Optional[float],
-    product_status:  Optional[str],
-) -> str:
-    parts: list[str] = []
-    if q:                          parts.append(f'Search="{q}"')
-    if brand_id        is not None: parts.append(f"Brand ID={brand_id}")
-    if category_id     is not None: parts.append(f"Category ID={category_id}")
-    if subcategory_id  is not None: parts.append(f"Subcategory ID={subcategory_id}")
-    if is_best_selling is not None:
-        parts.append("Best Selling Only" if is_best_selling else "Non-Best-Selling")
-    if in_stock:                    parts.append("In Stock Only")
-    if min_price       is not None: parts.append(f"Min Price=${min_price:,.2f}")
-    if max_price       is not None: parts.append(f"Max Price=${max_price:,.2f}")
-    if product_status:              parts.append(f"Status={product_status}")
-    return " | ".join(parts) if parts else "No filters — full catalog export"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -327,51 +287,8 @@ def _build_export_query(
 # Workbook section writers
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _write_meta_section(
-    ws,
-    total: int,
-    filter_summary: str,
-    now: datetime,
-) -> None:
-    """Write rows 1-5: title banner, timestamp, count, filters, separator."""
-    ts = now.astimezone(_BAGHDAD_TZ).strftime("%Y-%m-%d %I:%M %p") + " (Baghdad)"
-
-    # Declare merged ranges BEFORE appending any rows.
-    # In write_only mode, merge info is stored as XML metadata independently
-    # of cell data and is safe to set at any point before save().
-    for row_n in range(1, 6):
-        try:
-            ws.merge_cells(f"A{row_n}:{_LAST_COL}{row_n}")
-        except (AttributeError, TypeError):
-            pass  # Graceful degradation for environments where merge is unavailable
-
-    def _merged(value: Any, font, fill, alignment=ALIGN_META) -> list:
-        """Return a full-width row with `value` in the first cell."""
-        first = _mc(ws, value, font=font, fill=fill, alignment=alignment)
-        rest  = [_mc(ws, None, fill=fill) for _ in range(TOTAL_COLS - 1)]
-        return [first] + rest
-
-    # Row 1 — Company title (dark navy / gold)
-    ws.append(_merged(
-        "  Dhifaf Baghdad — Product Inventory Report",
-        FONT_TITLE, FILL_TITLE, ALIGN_TITLE,
-    ))
-
-    # Row 2 — Generation timestamp
-    ws.append(_merged(f"  Generated: {ts}", FONT_META_KEY, FILL_META))
-
-    # Row 3 — Total record count
-    ws.append(_merged(f"  Total Products: {total:,}", FONT_META_KEY, FILL_META))
-
-    # Row 4 — Active filters
-    ws.append(_merged(f"  Filters: {filter_summary}", FONT_META_VAL, FILL_META))
-
-    # Row 5 — Visual separator
-    ws.append([_mc(ws, None, fill=FILL_SEP) for _ in range(TOTAL_COLS)])
-
-
 def _write_header_row(ws) -> None:
-    """Write row 6: styled column header labels."""
+    """Write row 1: styled column header labels."""
     ws.append([
         _mc(ws, label,
             font=FONT_HEADER, fill=FILL_HEADER,
@@ -463,7 +380,6 @@ def generate_export_bytes(
     -------
     (BytesIO, int) — ready-to-read buffer and total matching product count
     """
-    now  = datetime.now(tz=timezone.utc)
     rate = _load_iqd_rate()
 
     export_q = _build_export_query(
@@ -474,40 +390,24 @@ def generate_export_bytes(
         product_status=product_status, sort_by=sort_by,
     )
 
-    # Resolve total BEFORE starting the write-only stream (needed for row 3 header)
-    total: int = db.execute(
-        export_q.statement.with_only_columns(func.count()).order_by(None)
-    ).scalar() or 0
-
-    filter_summary = _build_filter_summary(
-        q, brand_id, category_id, subcategory_id,
-        is_best_selling, in_stock, min_price, max_price, product_status,
-    )
-
-    logger.info("product_export_start total=%d filters=%r", total, filter_summary)
+    logger.info("product_export_start")
 
     # ── Build workbook ────────────────────────────────────────────────────────
     wb = Workbook(write_only=True)
     ws = wb.create_sheet("Products")
 
-    # Sheet-level properties (all safe in write_only mode)
-    ws.sheet_properties.tabColor = "1E3A5F"   # Dark navy sheet tab
-    ws.freeze_panes = f"A{_DATA_START}"        # Freeze rows 1-6 on scroll
+    # Sheet-level properties
+    ws.sheet_properties.tabColor = "1E3A5F"
+    ws.freeze_panes = f"A{_DATA_START}"   # Freeze header row on scroll
 
-    # Row heights (character units; 1 pt ≈ 0.75 px)
-    ws.row_dimensions[1].height = 30   # Title banner
-    ws.row_dimensions[2].height = 18   # Timestamp
-    ws.row_dimensions[3].height = 18   # Total count
-    ws.row_dimensions[4].height = 18   # Filters
-    ws.row_dimensions[5].height = 6    # Separator
-    ws.row_dimensions[6].height = 34   # Column headers
+    # Row heights
+    ws.row_dimensions[1].height = 34   # Column headers
 
     # Column widths
     for col_idx, (_, _, width, _) in enumerate(EXPORT_COLUMNS, start=1):
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 
-    # ── Write sections ────────────────────────────────────────────────────────
-    _write_meta_section(ws, total, filter_summary, now)
+    # ── Write header then data ────────────────────────────────────────────────
     _write_header_row(ws)
 
     rows_written = 0
@@ -522,4 +422,4 @@ def generate_export_bytes(
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    return buf, total
+    return buf, rows_written

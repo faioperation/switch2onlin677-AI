@@ -128,9 +128,6 @@ EXPORT_COLUMNS: list[tuple[str, str | Callable, int, Optional[str]]] = [
     ("Last SAP Sync",      "last_synced_sap",                                 20, FMT_TEXT),
     # ── AI ───────────────────────────────────────────────────────────────────
     ("AI Score",           "ai_score",                                        12, FMT_DECIMAL),
-    # ── Lifecycle ────────────────────────────────────────────────────────────
-    ("Created At",         "created_at",                                      20, FMT_TEXT),
-    ("Updated At",         "updated_at",                                      20, FMT_TEXT),
 ]
 
 # Total column count — used to compute merged cell ranges
