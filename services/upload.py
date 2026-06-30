@@ -64,8 +64,16 @@ from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+import re
+
 from database import SessionLocal
 from models import Brand, Category, Product, ProductSearchIndex, Subcategory, UploadJob
+from schemas.export_columns import (
+    ALL_UPLOAD_COLUMNS,
+    DEPRECATED_UPLOAD_COLUMNS,
+    REQUIRED_UPLOAD_COLUMNS,
+    TAG_ALIAS_COLUMNS,
+)
 from schemas.upload import ProductUploadRow, UploadResult, UploadRowError
 from services.normalization import get_normalizer
 
@@ -90,42 +98,16 @@ ALLOWED_MIME_TYPES: frozenset[str] = frozenset({
     "binary/octet-stream",
 })
 
-# ── Column registry ───────────────────────────────────────────────────────────
+# ── Column registry (single source of truth: schemas/export_columns.py) ───────
+#
+# Column lists are imported from schemas/export_columns.py so the export
+# generator and the upload validator stay permanently synchronised.
+# Do NOT re-declare these lists here — add new columns in export_columns.py.
 
-REQUIRED_PRODUCT_UPLOAD_COLUMNS: list[str] = ["barcode"]
-
-OPTIONAL_PRODUCT_UPLOAD_COLUMNS: list[str] = [
-    # Identity
-    "item_code", "item_name", "sap_product_id",
-    # Relations
-    "brand_name", "category_name", "subcategory_name",
-    # Display
-    "description", "image_url",
-    # AI / Search
-    "skin_type", "concerns", "tags",
-    # Pricing (SAP will overwrite — allowed for initial seed)
-    "price", "available_qty",
-    # Classification
-    "price_tier", "brand_family", "product_status",
-    # Recommendation flags
-    "is_best_selling", "is_new_arrival", "is_recommended",
-    "is_cod_recommended", "recommendation_priority",
-    "recommendation_score_override",
-    # Legacy
-    "best_selling_scope", "sales_rank",
-    # NOTE: bundle_group and bundle_discount_percent are intentionally
-    # REMOVED — bundles are managed through the /bundles/* API.
-]
-
-ALL_PRODUCT_UPLOAD_COLUMNS: list[str] = (
-    REQUIRED_PRODUCT_UPLOAD_COLUMNS + OPTIONAL_PRODUCT_UPLOAD_COLUMNS
-)
-
-# Alternative tag column names found in some catalog exports
-TAG_ALIASES: list[str] = ["Tag_EN", "Tag_MSA", "Tag_IRQ"]
-
-# Deprecated columns — if present, log a warning but do not process
-DEPRECATED_COLUMNS: frozenset[str] = frozenset({"bundle_group", "bundle_discount_percent"})
+REQUIRED_PRODUCT_UPLOAD_COLUMNS: list[str] = REQUIRED_UPLOAD_COLUMNS
+ALL_PRODUCT_UPLOAD_COLUMNS:      list[str] = ALL_UPLOAD_COLUMNS
+TAG_ALIASES:                     list[str] = TAG_ALIAS_COLUMNS
+DEPRECATED_COLUMNS:        frozenset[str] = DEPRECATED_UPLOAD_COLUMNS
 
 
 # ── File-level validation ─────────────────────────────────────────────────────
@@ -256,34 +238,87 @@ def read_product_upload_file(filename: str, content: bytes) -> pd.DataFrame:
     raise ValueError("Only .xlsx and .csv files are supported.")
 
 
+# ── Column normalisation ──────────────────────────────────────────────────────
+
+def _normalize_col_name(name: str) -> str:
+    """
+    Canonicalise a column name for case- and whitespace-insensitive matching.
+
+    Rules (applied in order):
+      1. Strip leading/trailing whitespace
+      2. Lowercase
+      3. Replace one-or-more whitespace characters with a single underscore
+
+    Examples
+    --------
+    "Barcode"      → "barcode"
+    "Item Code"    → "item_code"
+    "BRAND_NAME"   → "brand_name"
+    "  barcode  "  → "barcode"
+    "item  code"   → "item__code"  (double space → double underscore, still matches)
+    """
+    return re.sub(r"\s+", "_", name.strip().lower())
+
+
 # ── Column presence check ─────────────────────────────────────────────────────
 
 def validate_upload_columns(df: pd.DataFrame) -> dict[str, str]:
     """
-    Returns a mapping of logical_name → actual_column_name found in df.
-    Raises ValueError if any REQUIRED column is missing.
-    Logs a warning for any DEPRECATED columns found.
+    Build a mapping of  normalised_column_name → actual_column_name_in_df
+    and raise a descriptive ValueError if any required column is absent.
+
+    Normalisation makes the validator accept:
+      "barcode", "Barcode", "BARCODE", "Bar Code"  — all map to "barcode"
+      "item_name", "Item Name", "ITEM_NAME"         — all map to "item_name"
+      "brand_name", "Brand Name", "Brand_Name"      — all map to "brand_name"
+
+    This means exported files (whose headers are exact upload column names)
+    AND hand-crafted spreadsheets with Title-Case headers are both accepted.
+
+    Returns
+    -------
+    dict[str, str]
+        Keys are normalised column names; values are the original df column
+        names.  Use this dict to access rows via  row[col_map["barcode"]].
+
+    Raises
+    ------
+    ValueError
+        If any column in REQUIRED_PRODUCT_UPLOAD_COLUMNS is absent after
+        normalisation.  The error message lists every missing column and
+        shows what columns were actually found — makes debugging easy.
     """
-    normalized = {str(col).strip(): col for col in df.columns}
+    # Build normalised → original mapping
+    col_map: dict[str, str] = {}
+    for col in df.columns:
+        norm = _normalize_col_name(str(col))
+        if norm not in col_map:          # first column wins on duplicates
+            col_map[norm] = str(col)
 
-    missing = [c for c in REQUIRED_PRODUCT_UPLOAD_COLUMNS if c not in normalized]
+    # Required column check with detailed diagnostics
+    missing = [c for c in REQUIRED_PRODUCT_UPLOAD_COLUMNS if c not in col_map]
     if missing:
-        raise ValueError("Missing required columns: " + ", ".join(missing))
-
-    found_deprecated = DEPRECATED_COLUMNS & set(normalized.keys())
-    if found_deprecated:
-        logger.warning(
-            "deprecated_columns_in_upload",
-            extra={
-                "columns": sorted(found_deprecated),
-                "hint": (
-                    "bundle_group / bundle_discount_percent are no longer "
-                    "processed via upload. Use the /bundles/* API instead."
-                ),
-            },
+        found_cols = sorted(col_map.keys())
+        raise ValueError(
+            f"Missing required column(s): {', '.join(missing)}. "
+            f"File contains {len(found_cols)} column(s): "
+            f"{', '.join(found_cols[:20])}"
+            + (" …" if len(found_cols) > 20 else "") + ". "
+            "Column names are matched case-insensitively; spaces are treated as "
+            "underscores.  Make sure the file has a 'barcode' column."
         )
 
-    return normalized
+    # Deprecated column warning (normalised names match)
+    found_deprecated = DEPRECATED_COLUMNS & set(col_map.keys())
+    if found_deprecated:
+        logger.warning(
+            "deprecated_columns_in_upload cols=%s hint=%s",
+            sorted(found_deprecated),
+            "bundle_group / bundle_discount_percent are no longer processed "
+            "via upload. Use the /bundles/* API instead.",
+        )
+
+    return col_map
 
 
 # ── Search-text builder ───────────────────────────────────────────────────────
