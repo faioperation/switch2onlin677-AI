@@ -123,12 +123,14 @@ async def sync_sap_now():
     from services.sync import sync_sap_data
     from core.config import settings
 
-    await sync_sap_data()
+    result = await sync_sap_data()
+    ok = result.get("status") == "success"
     return {
-        "success":  True,
-        "message":  "SAP sync completed.",
+        "success":   ok,
+        "message":   "SAP sync completed." if ok else f"SAP sync failed: {result.get('error_message')}",
         "synced_at": datetime.datetime.now(settings.IRAQ_TIMEZONE).isoformat(),
         "timezone":  "Asia/Baghdad",
+        "summary":   result,
     }
 
 

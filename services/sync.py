@@ -176,13 +176,18 @@ def _write_audit(
 
 # ── Main sync function ────────────────────────────────────────────────────────
 
-async def sync_sap_data() -> None:
+async def sync_sap_data() -> dict:
     """
     Fetch all items from SAP in one batch request and update
     only SAP-owned fields in the DB.
 
     Recommendation flags, editorial fields, and price_source_override
     products are never modified.
+
+    Returns a summary dict — {"status": "success" | "failed", "error_message": str | None, ...counts}
+    — mirroring what gets written to sap_sync_audit_log, so callers (e.g. the
+    manual /sap/sync-now endpoint) can report the real outcome instead of
+    always claiming success.
     """
     start = time.monotonic()
     logger.info("sap_sync_started")
@@ -190,7 +195,7 @@ async def sync_sap_data() -> None:
     if not SAP_API_URL:
         logger.error("sap_sync_aborted", extra={"reason": "SAP_API_URL not configured"})
         _write_audit(db=None, status="failed", error_message="SAP_API_URL not configured")
-        return
+        return {"status": "failed", "error_message": "SAP_API_URL not configured"}
 
     # ── 1. Fetch from SAP ─────────────────────────────────────────────────────
     final_url = SAP_API_URL.rstrip("/")
@@ -206,13 +211,13 @@ async def sync_sap_data() -> None:
                 logger.error("sap_sync_aborted", extra={"reason": "rate limited (429)"})
                 _write_audit(db=None, status="failed", error_message="SAP rate limit 429",
                              duration_seconds=time.monotonic() - start)
-                return
+                return {"status": "failed", "error_message": "SAP rate limit 429"}
             if response.status_code != 200:
                 msg = f"SAP returned HTTP {response.status_code}"
                 logger.error("sap_sync_aborted", extra={"reason": msg})
                 _write_audit(db=None, status="failed", error_message=msg,
                              duration_seconds=time.monotonic() - start)
-                return
+                return {"status": "failed", "error_message": msg}
 
             sap_data = response.json()
 
@@ -221,12 +226,12 @@ async def sync_sap_data() -> None:
         logger.error("sap_sync_aborted", extra={"reason": msg})
         _write_audit(db=None, status="failed", error_message=msg,
                      duration_seconds=time.monotonic() - start)
-        return
+        return {"status": "failed", "error_message": msg}
     except Exception as exc:
         logger.error("sap_sync_fetch_failed", extra={"error": str(exc)})
         _write_audit(db=None, status="failed", error_message=str(exc),
                      duration_seconds=time.monotonic() - start)
-        return
+        return {"status": "failed", "error_message": str(exc)}
 
     # ── 2. Normalise item list ────────────────────────────────────────────────
     items: list[dict] = (
@@ -237,7 +242,7 @@ async def sync_sap_data() -> None:
         logger.warning("sap_sync_empty", extra={"reason": "SAP returned zero items"})
         _write_audit(db=None, status="success", items_received=0,
                      duration_seconds=time.monotonic() - start)
-        return
+        return {"status": "success", "items_received": 0}
 
     logger.info("sap_sync_items_received", extra={"count": len(items)})
 
@@ -321,6 +326,16 @@ async def sync_sap_data() -> None:
             duration_seconds=duration,
         )
 
+        return {
+            "status":                "success",
+            "items_received":        len(items),
+            "items_updated":         updated_count,
+            "items_not_found":       not_found_count,
+            "items_skipped":         skipped_count,
+            "items_price_protected": price_protected_count,
+            "duration_seconds":      round(duration, 2),
+        }
+
     except Exception as exc:
         db.rollback()
         duration = time.monotonic() - start
@@ -333,6 +348,12 @@ async def sync_sap_data() -> None:
             duration_seconds=duration,
             error_message=str(exc),
         )
+        return {
+            "status":         "failed",
+            "error_message":  str(exc),
+            "items_received": len(items),
+            "items_updated":  updated_count,
+        }
 
     finally:
         db.close()
